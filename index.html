@@ -18,16 +18,31 @@
 <body>
   <canvas id="game"></canvas>
 
-  <div id="hud">
+  <div id="hud" data-race="off">
+    <div id="raceInfo" class="race-only">
+      <div class="lap">Okrążenie <b id="hudLap">1/5</b></div>
+      <table>
+        <tr><th>Czas</th><td id="hudTotal">0:00.00</td></tr>
+        <tr><th>Okrążenie</th><td id="hudLapTime">0:00.00</td></tr>
+        <tr><th>Najlepsze</th><td id="hudBest">—</td></tr>
+      </table>
+    </div>
+    <!-- Slot przedmiotu — wypełniany w etapie 5. -->
+    <div id="itemSlot" class="race-only" title="Przedmiot (Shift / E)"></div>
+    <div id="position" class="race-only"><span id="hudPos">1</span><small id="hudPosOf">/1</small></div>
+    <div id="countdown" hidden></div>
+    <div id="banner" hidden></div>
+    <div id="wrongWay" hidden>⟲ PRZECIWNY KIERUNEK</div>
     <div id="speedo"><span id="speed">0</span><small>km/h</small></div>
     <div id="help">
       <b>W/↑</b> gaz · <b>S/↓</b> hamulec · <b>A D</b> skręt · <b>Spacja</b> dryf ·
-      <b>C</b> do tyłu · <b>R</b> na tor · <b>Esc</b> ustawienia
+      <b>C</b> do tyłu · <b>R</b> na tor · <b>Esc</b> pauza
     </div>
   </div>
 
+  <!-- Lobby (w etapie 6 dojdą gracze i sieć). -->
   <aside id="panel" hidden>
-    <h1>BongoCart <small>ustawienia toru · etap 2</small></h1>
+    <h1>BongoCart <small>lobby · etap 3</small></h1>
     <div id="settings"></div>
     <div class="buttons">
       <button id="newTrack">🎲 Nowy losowy tor</button>
@@ -35,8 +50,27 @@
     </div>
     <label class="toggle"><input type="checkbox" id="showDebug"> Linia jazdy botów, checkpointy, pola startowe</label>
     <p class="hint" id="seedLabel"></p>
-    <button id="resume" class="wide">▶ Jedź (Esc)</button>
+    <button id="startRace" class="wide">🏁 Start wyścigu</button>
   </aside>
+
+  <div id="pause" class="overlay" hidden>
+    <div class="card">
+      <h2>Pauza</h2>
+      <button id="resume" class="wide">▶ Wznów (Esc)</button>
+      <button id="quitRace" class="wide secondary">Wróć do lobby</button>
+    </div>
+  </div>
+
+  <div id="results" class="overlay" hidden>
+    <div class="card">
+      <h2>Wyniki</h2>
+      <table id="resultsTable">
+        <thead><tr><th></th><th>Kierowca</th><th>Czas</th><th>Najl. okr.</th></tr></thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+      <button id="backToLobby" class="wide">Wróć do lobby</button>
+    </div>
+  </div>
 
   <canvas id="minimap"></canvas>
 

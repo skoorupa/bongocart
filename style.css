@@ -125,3 +125,100 @@ button.wide { width: 100%; margin-top: 12px; }
 }
 #help b { color: var(--accent); }
 @media (max-width: 900px) { #help { display: none; } }
+
+/* --- Etap 3: HUD wyścigu, odliczanie, pauza, wyniki --- */
+#hud[data-race="off"] .race-only { display: none; }
+#raceInfo {
+  position: absolute;
+  left: 20px;
+  top: 16px;
+  font-variant-numeric: tabular-nums;
+}
+#raceInfo .lap { font-size: 22px; }
+#raceInfo .lap b { font-size: 34px; color: var(--accent); }
+#raceInfo table { border-collapse: collapse; font-size: 15px; margin-top: 2px; }
+#raceInfo th { text-align: left; font-weight: 400; color: var(--muted); padding-right: 12px; }
+#raceInfo td { text-align: right; }
+#position {
+  position: absolute;
+  right: 24px;
+  top: 10px;
+  font-size: 72px;
+  line-height: 1;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+#position small { font-size: 26px; color: var(--text); }
+#itemSlot {
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  width: 72px;
+  height: 72px;
+  transform: translateX(-50%);
+  border: 3px solid rgba(255, 255, 255, 0.7);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.3);
+}
+#countdown {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  transform: translate(-50%, -50%);
+  font-size: 140px;
+  color: #fff;
+  -webkit-text-stroke: 4px #1a1a2e;
+}
+#countdown[data-go="1"] { color: #7bed8d; font-size: 110px; }
+#banner {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  font-size: 34px;
+  white-space: nowrap;
+}
+#banner[data-kind="final"] { color: #ff6b6b; font-size: 44px; }
+#banner[data-kind="finish"] { color: var(--accent); font-size: 56px; }
+#wrongWay {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  transform: translateX(-50%);
+  padding: 8px 18px;
+  border-radius: 10px;
+  background: rgba(200, 30, 30, 0.85);
+  font-size: 26px;
+  animation: blink 0.8s steps(2) infinite;
+}
+.pop { animation: pop 0.35s ease-out; }
+#countdown.pop { animation: popCenter 0.35s ease-out; }
+@keyframes pop { from { transform: translateX(-50%) scale(1.6); opacity: 0; } }
+@keyframes popCenter { from { transform: translate(-50%, -50%) scale(1.8); opacity: 0; } }
+@keyframes blink { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .pop, #countdown.pop, #wrongWay { animation: none; } }
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+.overlay[hidden] { display: none; }
+.card {
+  min-width: 300px;
+  max-width: calc(100vw - 32px);
+  padding: 18px 22px;
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.card h2 { margin: 0 0 10px; color: var(--accent); }
+button.secondary { background: #3a3a55; color: var(--text); }
+#resultsTable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+#resultsTable th { text-align: left; font-weight: 400; color: var(--muted); padding: 4px 10px 4px 0; }
+#resultsTable td { padding: 5px 10px 5px 0; }
+#resultsTable tr.me td { color: var(--accent); font-weight: 700; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }

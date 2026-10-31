@@ -30,6 +30,7 @@ export function kartStats(speedClass) {
 
 export function createKartState(track, slot) {
   const g = gridSlot(track, slot);
+  const q = nearestOnTrack(track, g.x, g.z);
   return {
     x: g.x, z: g.z, heading: g.heading,
     vx: 0, vz: 0,
@@ -38,8 +39,8 @@ export function createKartState(track, slot) {
     drift: { active: false, dir: 0, charge: 0, level: 0, hop: 0 },
     boostTime: 0,
     surface: 'road', // road | kerb | offroad
-    lateral: 0, // przesunięcie od środka toru (+ = w prawo)
-    trackS: 0, // metr okrążenia
+    lateral: q.lateral, // przesunięcie od środka toru (+ = w prawo)
+    trackS: q.s, // metr okrążenia
     wallHit: 0, // siła ostatniego uderzenia w bandę (dźwięk/efekty)
   };
 }

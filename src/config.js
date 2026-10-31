@@ -271,6 +271,25 @@ export const BOT_DIFFICULTIES = {
 export const MAX_RACERS = 8;
 
 // ---------------------------------------------------------------------
+// Przebieg wyścigu: odliczanie, checkpointy, meta, HUD.
+// ---------------------------------------------------------------------
+export const RACE = {
+  countdownSeconds: 3, // 3-2-1, potem START
+  goBannerSeconds: 1, // jak długo widać "START!"
+  // Checkpoint zaliczony, gdy kart jest 0..okno metrów ZA nim (po linii
+  // toru). Musi być mniejsze niż odstęp checkpointów (test pilnuje).
+  checkpointPassWindow: 20,
+  finishTimeoutSeconds: 30, // po pierwszym na mecie reszta ma tyle czasu
+  resultsDelaySeconds: 2.5, // od końca wyścigu do tabeli wyników
+  bannerSeconds: 2.5, // komunikaty: ostatnie okrążenie, czas okrążenia
+  wrongWay: {
+    dot: -0.3, // cos kąta między kursem a kierunkiem toru
+    minSpeed: 3, // [m/s] poniżej nie ostrzegamy (manewrowanie)
+    delaySeconds: 1, // tyle musi trwać, zanim pokażemy ostrzeżenie
+  },
+};
+
+// ---------------------------------------------------------------------
 // Motywy kolorystyczne (kolory jako 0xRRGGBB).
 // ---------------------------------------------------------------------
 export const THEMES = {
