@@ -73,7 +73,6 @@ export function buildTrackVisual(track) {
   group.add(buildStartLine(points[0], halfWidth));
   group.add(buildGround(track));
   buildDecorations(track).forEach((m) => group.add(m));
-  if (track.itemBoxes.length) group.add(buildItemBoxPreview(track));
 
   // --- Oświetlenie z motywu
   group.add(new THREE.HemisphereLight(theme.hemiSky, theme.hemiGround, theme.hemiIntensity));
@@ -147,20 +146,6 @@ function buildDecorations(track) {
     make(new THREE.ConeGeometry(2.2, 5, 7), theme.foliage, trees, 4.4),
     make(new THREE.DodecahedronGeometry(1.6, 0), theme.rock, rocks, 0.8),
   ];
-}
-
-// Podgląd rozmieszczenia skrzynek (właściwa logika w etapie 5).
-function buildItemBoxPreview(track) {
-  const boxes = track.itemBoxes;
-  const mesh = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(1.6, 1.6, 1.6),
-    new THREE.MeshLambertMaterial({ color: track.theme.accent, transparent: true, opacity: 0.85 }),
-    boxes.length);
-  const m = new THREE.Matrix4();
-  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 4, Math.PI / 4, 0));
-  const s = new THREE.Vector3(1, 1, 1);
-  boxes.forEach((b, i) => mesh.setMatrixAt(i, m.compose(new THREE.Vector3(b.x, 1.4, b.z), q, s)));
-  return mesh;
 }
 
 // Nakładki debug: linia jazdy botów, checkpointy, pola startowe.

@@ -95,6 +95,14 @@ export function createKartMesh(color) {
   shadow.position.y = 0.06;
   root.add(shadow);
 
+  // Tarcza: półprzezroczysta bańka.
+  const shield = new THREE.Mesh(
+    new THREE.SphereGeometry(1.75, 16, 12),
+    new THREE.MeshBasicMaterial({ color: 0x7fdbff, transparent: true, opacity: 0.28, depthWrite: false }));
+  shield.position.y = R + 0.5;
+  shield.scale.set(1, 0.8, 1.15);
+  root.add(shield);
+
   let wheelSpin = 0, t = 0;
 
   return {
@@ -103,7 +111,9 @@ export function createKartMesh(color) {
     update(view, dt) {
       t += dt;
       root.position.set(view.x, 0, view.z);
-      root.rotation.y = view.heading;
+      // Obrót po trafieniu: kart kręci się wokół osi (kamera nie).
+      const spinDone = view.spinTime > 0 ? 1 - view.spinTime / KART.spin.seconds : 0;
+      root.rotation.y = view.heading + spinDone * KART.spin.turns * Math.PI * 2;
 
       wheelSpin += (view.speed / R) * dt;
       wheels.forEach((w) => { w.rotation.x = wheelSpin; });
@@ -122,6 +132,9 @@ export function createKartMesh(color) {
         s.rotation.set(t * 17 + i, t * 23, 0);
         s.scale.setScalar(0.6 + 0.6 * Math.abs(Math.sin(t * 40 + i * 2)) + d.level * 0.4);
       });
+
+      shield.visible = view.shieldTime > 0;
+      shield.rotation.y = t * 0.8;
 
       flame.visible = view.boostTime > 0;
       flame.scale.set(1, 0.8 + Math.abs(Math.sin(t * 50)) * 0.8, 1);

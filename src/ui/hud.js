@@ -3,7 +3,7 @@
 // odliczanie, komunikaty, ostrzeżenie "pod prąd", tabela wyników.
 // Tylko wyświetla stan z race.js — żadnej logiki wyścigu tutaj.
 // =====================================================================
-import { RACE } from '../config.js';
+import { ITEMS, RACE } from '../config.js';
 import { displayLap, estimatedFinish, formatTime, showWrongWay, standings } from '../race.js';
 
 const $ = (id) => document.getElementById(id);
@@ -21,7 +21,9 @@ export function createHud() {
     root: $('hud'), lap: $('hudLap'), total: $('hudTotal'), lapTime: $('hudLapTime'), best: $('hudBest'),
     pos: $('hudPos'), posOf: $('hudPosOf'), countdown: $('countdown'), banner: $('banner'),
     wrongWay: $('wrongWay'), results: $('results'), resultsBody: $('resultsBody'),
+    item: $('itemSlot'),
   };
+  let shownIcon = null;
   let bannerLeft = 0;
   let lastCount = null;
 
@@ -59,10 +61,12 @@ export function createHud() {
         if (e.type === 'finalLap') banner('OSTATNIE OKRĄŻENIE!', RACE.bannerSeconds, 'final');
         if (e.type === 'lap' && e.lap < race.laps) banner(`Okrążenie ${formatTime(e.time)}${e.best ? ' · najlepsze!' : ''}`);
         if (e.type === 'finish') banner(`META! ${e.place}. miejsce`, RACE.resultsDelaySeconds + 1, 'finish');
+        if (e.type === 'hit') banner(e.what === 'rocket' ? 'Trafiony pociskiem!' : 'Poślizg na bananie!', RACE.hitBannerSeconds, 'hit');
+        if (e.type === 'blocked') banner('Tarcza ochroniła!', RACE.hitBannerSeconds);
       }
     },
 
-    update(race, localId, dt) {
+    update(race, localId, dt, items) {
       const me = race.racers.find((r) => r.id === localId);
       const order = standings(race);
       const place = order.indexOf(me) + 1;
@@ -96,6 +100,19 @@ export function createHud() {
         if (bannerLeft <= 0) el.banner.hidden = true;
       }
       el.wrongWay.hidden = !(running && race.phase === 'racing' && showWrongWay(me));
+
+      // Slot przedmiotu: w ruletce ikony się przewijają, potem stała ikona.
+      const slot = items.slots.get(localId);
+      let icon = '';
+      if (slot.item && slot.roll > 0) {
+        const k = Math.floor(slot.roll / ITEMS.rollIconSeconds) % items.enabled.length;
+        icon = ITEMS.types[items.enabled[k]].icon;
+      } else if (slot.item) icon = ITEMS.types[slot.item].icon;
+      if (icon !== shownIcon) {
+        shownIcon = icon;
+        el.item.textContent = icon;
+        el.item.dataset.state = slot.item ? (slot.roll > 0 ? 'rolling' : 'ready') : 'empty';
+      }
     },
 
     showResults(race, localId, onBack) {

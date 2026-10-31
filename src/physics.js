@@ -38,6 +38,8 @@ export function createKartState(track, slot) {
     steer: 0, // wygładzony skręt −1..1 (+ = w prawo)
     drift: { active: false, dir: 0, charge: 0, level: 0, hop: 0 },
     boostTime: 0,
+    spinTime: 0, // > 0 = obrót po trafieniu (brak kontroli)
+    shieldTime: 0, // > 0 = tarcza (zdejmuje ją items.js)
     surface: 'road', // road | kerb | offroad
     lateral: q.lateral, // przesunięcie od środka toru (+ = w prawo)
     trackS: q.s, // metr okrążenia
@@ -50,8 +52,23 @@ export function applyBoost(kart, seconds) {
   kart.boostTime = Math.max(kart.boostTime, seconds);
 }
 
+// Trafienie (banan, pocisk): obrót, utrata dryfu i turbo.
+export function spinOut(kart) {
+  kart.spinTime = KART.spin.seconds;
+  kart.boostTime = 0;
+  endDrift(kart.drift);
+}
+
+const NO_INPUT = { throttle: 0, brake: 0, steer: 0, drift: false };
+
 // input: {throttle 0..1, brake 0..1, steer −1..1, drift bool}
 export function stepKart(kart, input, track, stats, dt) {
+  const spinning = kart.spinTime > 0;
+  if (spinning) {
+    kart.spinTime = Math.max(0, kart.spinTime - dt);
+    input = NO_INPUT;
+  }
+
   // --- Wygładzony skręt (gamepad analogowy też przechodzi, ale szybko).
   const steerRate = Math.abs(input.steer) > Math.abs(kart.steer) ? KART.steerRiseRate : KART.steerReturnRate;
   kart.steer = approach(kart.steer, input.steer, steerRate * dt);
@@ -87,6 +104,8 @@ export function stepKart(kart, input, track, stats, dt) {
     const drag = kart.surface === 'offroad' && !boosting ? KART.offroadDrag : KART.overSpeedDrag;
     fwd = Math.max(limit, fwd - drag * dt);
   }
+
+  if (spinning) fwd = approach(fwd, 0, KART.spin.drag * dt);
 
   // --- Skręt zależny od prędkości.
   const speedFrac = clamp(Math.abs(fwd) / stats.maxSpeed, 0, 1);
@@ -223,6 +242,6 @@ export function collideKarts(karts) {
 export function resetKartToTrack(kart, track) {
   const q = nearestOnTrack(track, kart.x, kart.z);
   const p = track.points[q.index];
-  Object.assign(kart, { x: p.x, z: p.z, heading: p.heading, vx: 0, vz: 0, speed: 0, steer: 0, boostTime: 0 });
+  Object.assign(kart, { x: p.x, z: p.z, heading: p.heading, vx: 0, vz: 0, speed: 0, steer: 0, boostTime: 0, spinTime: 0 });
   endDrift(kart.drift);
 }

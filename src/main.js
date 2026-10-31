@@ -1,6 +1,6 @@
 // =====================================================================
-// main.js — ETAP 4: lobby (ustawienia, podgląd toru i stawki) ->
-// odliczanie -> wyścig z botami -> wyniki -> lobby.
+// main.js — ETAP 5: lobby (ustawienia, podgląd toru i stawki) ->
+// odliczanie -> wyścig z botami i przedmiotami -> wyniki -> lobby.
 // Symulację liczy game.js; tutaj tylko wejście, rysowanie i UI.
 // W etapie 6 dojdzie sieć (lobby = pokój PeerJS, host liczy game.js).
 // =====================================================================
@@ -13,6 +13,7 @@ import { createSettingsForm } from './ui/settingsForm.js';
 import { createMinimap } from './ui/minimap.js';
 import { createInput } from './input.js';
 import { createKartMesh } from './kartMesh.js';
+import { createItemsView } from './itemsMesh.js';
 import { createChaseCamera } from './camera.js';
 import { createGame } from './game.js';
 import { createHud } from './ui/hud.js';
@@ -38,6 +39,7 @@ let randomTrackSeed = randomSeed(); // używany, gdy pole seeda jest puste
 let trackKey = null; // parametry, z których powstał bieżący tor
 let track = null;
 let visual = null;
+let itemsView = null;
 let game = null; // w lobby: podgląd stawki (bez kroków symulacji)
 let inRace = false;
 let paused = false;
@@ -73,6 +75,12 @@ function rebuild() {
     visual = buildTrackVisual(track);
     visual.debug.visible = $('showDebug').checked;
     scene.add(visual.group);
+    if (itemsView) {
+      scene.remove(itemsView.group);
+      itemsView.dispose();
+    }
+    itemsView = createItemsView(track);
+    scene.add(itemsView.group);
     applyThemeToScene(scene, track.theme, true);
     minimap.setTrack(track);
     $('seedLabel').textContent = `Seed: ${seed} · ${Math.round(track.length)} m`;
@@ -157,6 +165,8 @@ function viewOf(id, alpha, lookBack = false) {
     steer: k.steer,
     drift: k.drift,
     boostTime: k.boostTime,
+    spinTime: k.spinTime,
+    shieldTime: k.shieldTime,
     speedFrac: Math.abs(k.speed) / game.stats.maxSpeed,
     boosting: k.boostTime > 0,
     driftDir: k.drift.active ? k.drift.dir : 0,
@@ -187,6 +197,7 @@ if (new URLSearchParams(location.search).has('debug')) {
 
 const clock = new THREE.Clock();
 let acc = 0;
+let pending = { reset: false, item: false };
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), PHYSICS.fixedDt * PHYSICS.maxStepsPerFrame);
   const ctl = input.read();
@@ -195,11 +206,14 @@ renderer.setAnimationLoop(() => {
   const simulate = inRace && !paused;
   if (simulate) {
     acc += dt;
-    let reset = ctl.resetPressed; // jednorazowe — tylko w pierwszym kroku
+    // Akcje jednorazowe (reset, przedmiot) czekają na pierwszy krok
+    // fizyki — klatka może nie mieć żadnego kroku.
+    pending.reset ||= ctl.resetPressed;
+    pending.item ||= ctl.itemPressed;
     while (acc >= PHYSICS.fixedDt) {
       savePrev();
-      const inputs = new Map([[LOCAL.id, { ...ctl, reset }]]);
-      reset = false;
+      const inputs = new Map([[LOCAL.id, { ...ctl, ...pending }]]);
+      pending = { reset: false, item: false };
       const events = game.step(PHYSICS.fixedDt, inputs);
       hud.handleEvents(events, LOCAL.id, game.race);
       if (events.some((e) => e.type === 'end')) resultsIn = RACE.resultsDelaySeconds;
@@ -212,11 +226,12 @@ renderer.setAnimationLoop(() => {
         hud.showResults(game.race, LOCAL.id, enterLobby);
       }
     }
-    hud.update(game.race, LOCAL.id, dt);
+    hud.update(game.race, LOCAL.id, dt, game.items);
   }
 
   const alpha = simulate ? acc / PHYSICS.fixedDt : 1;
   for (const [id, m] of meshes) m.update(viewOf(id, alpha), simulate ? dt : 0);
+  itemsView.update(game.items, simulate || !inRace ? dt : 0);
   const me = viewOf(LOCAL.id, alpha, ctl.lookBack && simulate);
   chase.update(me, dt);
   minimap.draw(game.roster.map((r) => {

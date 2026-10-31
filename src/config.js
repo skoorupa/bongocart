@@ -55,6 +55,8 @@ export const KART = {
   wallRestitution: 0.25, // odbicie od bandy (0..1)
   wallSpeedKeep: 0.85, // ułamek prędkości zachowany przy uderzeniu
   wallHitMinSpeed: 2, // poniżej: tylko "ślizg" wzdłuż bandy
+  // Obrót po trafieniu (banan, pocisk): brak kontroli, mocne hamowanie.
+  spin: { seconds: 1.1, drag: 26, turns: 2 },
   bumpRestitution: 0.6, // odbicie przy zderzeniu kart (0 = plastycznie, 1 = sprężyście)
   wallAlign: 0.12, // przy kontakcie kurs obraca się w stronę bandy (ułamek na krok) — brak "zakleszczenia"
 
@@ -240,8 +242,8 @@ export const RENDER = {
 };
 
 // ---------------------------------------------------------------------
-// Przedmioty (rozmieszczenie skrzynek liczy generator toru; logika
-// przedmiotów w etapie 5).
+// Przedmioty. Rozmieszczenie skrzynek liczy generator toru, logikę
+// items.js, wygląd itemsMesh.js.
 // ---------------------------------------------------------------------
 export const ITEMS = {
   frequencies: {
@@ -255,21 +257,53 @@ export const ITEMS = {
   firstRowAfterStart: 80, // brak skrzynek tuż za startem
   lastRowBeforeFinish: 40,
   rowEdgeMargin: 2,
+
+  box: { pickupRadius: 1.4, respawnSeconds: 2, size: 1.5, height: 1.3, spinSpeed: 1.5 },
+  rollSeconds: 1.2, // "ruletka" w slocie, zanim przedmiot jest gotowy
+  rollIconSeconds: 0.08, // zmiana ikony w ruletce
+
+  // Wagi losowania wg miejsca: [przód stawki, środek, tył]. Prowadzący
+  // dostają obronę, ostatni — przedmioty do odrabiania strat.
+  positionBands: [1 / 3, 2 / 3],
   types: {
-    rocket: { label: 'Pocisk' },
-    banana: { label: 'Banan' },
-    boost: { label: 'Turbo' },
-    shield: { label: 'Tarcza' },
+    rocket: { label: 'Pocisk', icon: '🚀', weights: [1, 3, 4] },
+    banana: { label: 'Banan', icon: '🍌', weights: [4, 2, 1] },
+    boost: { label: 'Turbo', icon: '⚡', weights: [1, 3, 4] },
+    shield: { label: 'Tarcza', icon: '🛡️', weights: [3, 2, 1] },
+  },
+
+  boost: { seconds: 1.6 },
+  shield: { seconds: 8 },
+  banana: { dropBack: 2.6, hitRadius: 0.9, maxOnTrack: 24 },
+  // Pocisk leci wzdłuż toru i dopasowuje się bokiem do celu; z bliska
+  // naprowadza się wprost. Cel = kierowca bezpośrednio przed strzelającym.
+  rocket: {
+    speed: 55, // [m/s] (szybszy od każdego karta)
+    lifetime: 7, // [s]
+    launchAhead: 2.5, // [m] przed kartem
+    lateralRate: 12, // [m/s] zmiana przesunięcia bocznego
+    homingRange: 18, // [m]
+    hitRadius: 1.0,
+    armSeconds: 0.3, // tyle nie trafia strzelającego
+  },
+  // Bot: kiedy używa przedmiotu.
+  ai: {
+    holdSeconds: [0.8, 3.5], // losowa zwłoka po wylosowaniu
+    rocketRange: 90, // [m] strzela, gdy cel jest bliżej
+    bananaBehind: 15, // [m] zrzuca, gdy ktoś jest tuż za nim
+    boostStraightRadius: 90, // [m] turbo na prostej (brak ciaśniejszych zakrętów)
+    boostLookMeters: 50,
+    maxHoldSeconds: 10, // potem używa i tak
   },
 };
 
 // Poziomy botów. speedFactor ogranicza prędkość docelową (× v.max klasy),
 // cornerFactor — jak odważnie wchodzą w zakręty, lineNoise — jak bardzo
-// "pływają" wokół linii jazdy [m].
+// "pływają" wokół linii jazdy [m], dodge — omijają banany.
 export const BOT_DIFFICULTIES = {
-  easy: { label: 'Łatwy', speedFactor: 0.8, cornerFactor: 0.8, lineNoise: 2.5, steerGain: 2.5, drift: false },
-  medium: { label: 'Średni', speedFactor: 0.9, cornerFactor: 0.92, lineNoise: 1.2, steerGain: 3, drift: true },
-  hard: { label: 'Trudny', speedFactor: 0.98, cornerFactor: 1.0, lineNoise: 0.4, steerGain: 3.5, drift: true },
+  easy: { label: 'Łatwy', speedFactor: 0.8, cornerFactor: 0.8, lineNoise: 2.5, steerGain: 2.5, drift: false, dodge: false },
+  medium: { label: 'Średni', speedFactor: 0.9, cornerFactor: 0.92, lineNoise: 1.2, steerGain: 3, drift: true, dodge: true },
+  hard: { label: 'Trudny', speedFactor: 0.98, cornerFactor: 1.0, lineNoise: 0.4, steerGain: 3.5, drift: true, dodge: true },
 };
 
 // Wspólne parametry kierowcy AI (boty, gracz po mecie, rozłączony gracz).
@@ -309,6 +343,7 @@ export const RACE = {
   finishTimeoutSeconds: 30, // po pierwszym na mecie reszta ma tyle czasu
   resultsDelaySeconds: 2.5, // od końca wyścigu do tabeli wyników
   bannerSeconds: 2.5, // komunikaty: ostatnie okrążenie, czas okrążenia
+  hitBannerSeconds: 1.2, // komunikat o trafieniu
   wrongWay: {
     dot: -0.3, // cos kąta między kursem a kierunkiem toru
     minSpeed: 3, // [m/s] poniżej nie ostrzegamy (manewrowanie)

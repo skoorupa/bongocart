@@ -11,7 +11,8 @@
 import { AI, BOT_NAMES, KART_COLORS, MAX_RACERS } from './config.js';
 import { createKartState, stepKart, kartStats, resetKartToTrack, collideKarts } from './physics.js';
 import { createDriver } from './ai.js';
-import { createRace, updateRace } from './race.js';
+import { createRace, updateRace, standings } from './race.js';
+import { createItems, stepItems } from './items.js';
 import { deriveSeed } from './rng.js';
 
 const NEUTRAL = { throttle: 0, brake: 0, steer: 0, drift: false };
@@ -45,6 +46,7 @@ export function createGame({ track, settings, humans, seed }) {
     return drivers.get(id);
   };
   const kartList = [...karts.values()];
+  const items = createItems({ track, settings, seed, racerIds: roster.map((r) => r.id) });
 
   // Gumka: odległość bota od najlepszego człowieka, który jeszcze jedzie.
   function speedMulFor(r, leaderProgress) {
@@ -59,28 +61,48 @@ export function createGame({ track, settings, humans, seed }) {
     roster,
     karts,
     stats,
+    items,
 
     // inputs: Map id -> sterowanie człowieka (z input.js / z sieci).
     // Zwraca zdarzenia wyścigu (patrz race.js).
     step(dt, inputs) {
       const racing = race.phase === 'racing';
+      const order = standings(race);
       const live = race.racers.filter((r) => r.isHuman && r.finishTime === null);
       const leaderProgress = live.length ? Math.max(...live.map((r) => r.progress)) : null;
+      const uses = new Set();
 
-      for (const r of race.racers) {
+      order.forEach((r, place) => {
         const kart = karts.get(r.id);
         let input;
         if (race.phase === 'countdown') input = NEUTRAL;
         else if (r.isHuman && racing && r.finishTime === null) input = inputs.get(r.id) ?? NEUTRAL;
         else {
           const others = kartList.filter((k) => k !== kart);
-          input = driverOf(r.id).control(kart, { others, stats, speedMul: speedMulFor(r, leaderProgress) }, dt);
+          input = driverOf(r.id).control(kart, {
+            others,
+            stats,
+            speedMul: speedMulFor(r, leaderProgress),
+            slot: items.slots.get(r.id),
+            hazards: items.bananas,
+            // Odstępy [m] do sąsiadów w kolejności (null = brak sąsiada).
+            gapAhead: place > 0 ? order[place - 1].progress - r.progress : null,
+            gapBehind: place < order.length - 1 ? r.progress - order[place + 1].progress : null,
+          }, dt);
         }
         if (input.reset) resetKartToTrack(kart, track);
+        if (input.item) uses.add(r.id);
         stepKart(kart, input, track, stats, dt);
-      }
+      });
       if (settings.kartCollisions) collideKarts(kartList);
-      return updateRace(race, dt, karts);
+
+      const events = race.phase === 'countdown' ? [] : stepItems(items, {
+        track,
+        karts,
+        order: order.map((r) => r.id),
+        finished: new Set(race.racers.filter((r) => r.finishTime !== null).map((r) => r.id)),
+      }, uses, dt);
+      return [...events, ...updateRace(race, dt, karts)];
     },
   };
 }
