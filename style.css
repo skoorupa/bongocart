@@ -91,3 +91,37 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.35);
 }
+
+#panel[hidden] { display: none; }
+#panel { z-index: 2; }
+button.wide { width: 100%; margin-top: 12px; }
+
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  font-weight: 700;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+#speedo {
+  position: absolute;
+  left: 24px;
+  bottom: 18px;
+  font-size: 44px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+#speedo small { font-size: 16px; margin-left: 6px; color: var(--muted); }
+#hud[data-surface="offroad"] #speedo { color: #ff8a65; }
+#help {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+}
+#help b { color: var(--accent); }
+@media (max-width: 900px) { #help { display: none; } }

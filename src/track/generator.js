@@ -112,7 +112,7 @@ function resampleClosed(dense, targetLength, spacing) {
   return { points: out, step: step * scale };
 }
 
-// Styczne, normalne (w lewo od kierunku jazdy), kurs i krzywizna ze znakiem.
+// Styczne, normalne (w prawo z perspektywy kierowcy), kurs i krzywizna ze znakiem.
 // Krzywizna > 0 = zakręt w stronę normalnej (+n to wnętrze zakrętu).
 function computeFrames(points, step) {
   const n = points.length;
@@ -249,13 +249,13 @@ function projectOnSegment(points, i, x, z) {
   const t = clamp(((x - a.x) * dx + (z - a.z) * dz) / len2, 0, 1);
   const px = a.x + dx * t, pz = a.z + dz * t;
   const len = Math.sqrt(len2);
-  // Normalna odcinka (w lewo od kierunku jazdy) — znak przesunięcia bocznego.
+  // Normalna odcinka (w prawo od kierunku jazdy) — znak przesunięcia bocznego.
   const lateral = (x - px) * (-dz / len) + (z - pz) * (dx / len);
   return { index: i, t, dist: Math.hypot(x - px, z - pz), lateral };
 }
 
 // Najbliższe miejsce na linii środkowej: {index, t, dist, lateral, s}.
-// lateral > 0 = po lewej (w stronę normalnej), s = metr okrążenia.
+// lateral > 0 = po prawej (w stronę normalnej), s = metr okrążenia.
 export function nearestOnTrack(track, x, z) {
   const { points, spatial, step } = track;
   const n = points.length;

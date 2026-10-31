@@ -4,11 +4,119 @@
 // =====================================================================
 
 // ---------------------------------------------------------------------
-// Kart (na razie tylko to, czego potrzebuje generator toru; resztę
-// fizyki dopiszemy w etapie 2).
+// Kart — arcade'owy model jazdy. Wartości dla 150cc; klasa prędkości
+// mnoży je w JEDNYM miejscu: physics.js -> kartStats().
 // ---------------------------------------------------------------------
 export const KART = {
-  baseMaxSpeed: 30, // prędkość maksymalna przy 150cc [j/s]
+  baseMaxSpeed: 30, // prędkość maksymalna [m/s]
+  accel: 17, // przyspieszenie przy zerowej prędkości [m/s²]
+  accelFalloff: 0.7, // im bliżej v.max, tym słabsze przyspieszanie (0..1)
+  brakeDecel: 38,
+  reverseAccel: 10,
+  reverseMaxSpeed: 9,
+  coastDrag: 5, // wytracanie prędkości bez gazu [m/s²]
+  overSpeedDrag: 20, // hamowanie, gdy jedziemy szybciej niż limit (np. po turbo)
+
+  // Skręt zależny od prędkości [rad/s].
+  turnRateLow: 2.5, // przy małej prędkości
+  turnRateHigh: 1.55, // przy prędkości maksymalnej
+  turnRampSpeed: 6, // poniżej tej prędkości skręt słabnie do 0 (brak obrotu w miejscu)
+  // Wygładzanie skrętu z klawiatury [1/s].
+  steerRiseRate: 7,
+  steerReturnRate: 11,
+
+  // Przyczepność boczna: jak szybko znika poślizg boczny [1/s].
+  grip: 12,
+  driftGrip: 2.4,
+
+  // Dryf + mini-turbo.
+  drift: {
+    minSpeed: 11, // wejście w dryf od tej prędkości
+    minSteer: 0.3, // trzeba skręcać, żeby zacząć dryf
+    cancelSpeedFactor: 0.65, // dryf przerywa spadek poniżej minSpeed × to
+    turnMin: 0.15, // skręt w dryfie (× turnRateLow), kontra   -> promień ~80 m przy 30 m/s
+    turnMax: 0.95, // skręt w dryfie, pełne dociśnięcie         -> promień ~13 m
+    chargeBase: 0.6, // ładowanie [1/s] bez dociśnięcia
+    chargeSteer: 0.6, // dodatkowe ładowanie przy pełnym dociśnięciu
+    levels: [0.9, 1.9], // progi ładowania (s) -> poziom 1, 2
+    boostTimes: [0.55, 1.1], // czas turbo dla poziomu 1, 2
+    hopTime: 0.18, // podskok przy wejściu w dryf (tylko wizualnie)
+  },
+
+  boostSpeed: 8, // dodatek do v.max w trakcie turbo
+  boostAccel: 45,
+
+  // Nawierzchnia.
+  offroadSpeedFactor: 0.45, // limit prędkości poza torem (× v.max)
+  offroadDrag: 28,
+
+  // Bandy.
+  radius: 1.1, // promień kolizji karta
+  wallRestitution: 0.25, // odbicie od bandy (0..1)
+  wallSpeedKeep: 0.85, // ułamek prędkości zachowany przy uderzeniu
+  wallHitMinSpeed: 2, // poniżej: tylko "ślizg" wzdłuż bandy
+  wallAlign: 0.12, // przy kontakcie kurs obraca się w stronę bandy (ułamek na krok) — brak "zakleszczenia"
+
+  // Model (metry).
+  length: 2.4,
+  width: 1.6,
+  wheelRadius: 0.36,
+  maxBodyRoll: 0.12, // przechył nadwozia w zakręcie [rad]
+  driftBodyYaw: 0.35, // dodatkowy obrót nadwozia w dryfie [rad]
+};
+
+export const PHYSICS = {
+  fixedDt: 1 / 120, // stały krok symulacji
+  maxStepsPerFrame: 8, // ochrona przed "spiralą śmierci" po zawieszeniu karty
+};
+
+// Kolory kartów do wyboru przez graczy (i dla botów).
+export const KART_COLORS = [0xe63946, 0x1e88e5, 0x43aa8b, 0xffb703, 0x9b5de5, 0xff6fb5, 0xf77f00, 0x2ec4b6];
+
+// ---------------------------------------------------------------------
+// Sterowanie (KeyboardEvent.code) i gamepad (indeksy przycisków
+// w standardowym mapowaniu Gamepad API).
+// ---------------------------------------------------------------------
+export const CONTROLS = {
+  keys: {
+    accelerate: ['KeyW', 'ArrowUp'],
+    brake: ['KeyS', 'ArrowDown'],
+    left: ['KeyA', 'ArrowLeft'],
+    right: ['KeyD', 'ArrowRight'],
+    drift: ['Space'],
+    item: ['ShiftLeft', 'ShiftRight', 'KeyE'],
+    lookBack: ['KeyC'],
+    reset: ['KeyR'],
+    menu: ['Escape'],
+  },
+  gamepad: {
+    deadzone: 0.15,
+    steerAxis: 0,
+    accelerate: [7, 0], // RT, A
+    brake: [6, 1], // LT, B
+    drift: [5], // RB
+    item: [4, 2], // LB, X
+    lookBack: [3], // Y
+    menu: [9], // Start
+  },
+};
+
+// ---------------------------------------------------------------------
+// Kamera trzecioosobowa.
+// ---------------------------------------------------------------------
+export const CAMERA = {
+  distance: 6.8, // za kartem
+  height: 2.7,
+  lookHeight: 1.1,
+  lookAhead: 4, // punkt patrzenia przed kartem
+  posLerp: 9, // szybkość podążania pozycją [1/s]
+  yawLerp: 4.5, // opóźnienie obrotu [1/s]
+  fovBase: 66,
+  fovSpeedAdd: 10, // przy v.max
+  fovBoostAdd: 9,
+  fovLerp: 4,
+  driftRoll: 0.07, // pochylenie przy dryfie [rad]
+  rollLerp: 5,
 };
 
 // Klasy prędkości: mnożniki stosowane w JEDNYM miejscu (fizyka, etap 2).
@@ -112,7 +220,6 @@ export const TRACK = {
 // Renderowanie
 // ---------------------------------------------------------------------
 export const RENDER = {
-  fov: 65,
   near: 0.5,
   far: 4000,
   fogNear: 140,

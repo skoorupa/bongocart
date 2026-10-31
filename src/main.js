@@ -1,35 +1,41 @@
 // =====================================================================
-// main.js — ETAP 1: podgląd generatora toru.
-// Formularz ustawień działa tu jak lokalny "host" (walidacja przez
-// settings.js). W etapie 6 ten sam formularz trafi do lobby.
+// main.js — ETAP 2: jeden kart na losowym torze, fizyka, kamera.
+// Esc otwiera panel ustawień (lokalny "host"; w etapie 6 trafi do lobby).
 // =====================================================================
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { SETTINGS_SCHEMA, RENDER, KART, TRACK, THEMES } from './config.js';
+import { SETTINGS_SCHEMA, RENDER, PHYSICS, KART_COLORS } from './config.js';
 import { defaultSettings, applySettingChange, randomSeed } from './settings.js';
-import { generateTrack, trackParamsFromSettings, gridSlot } from './track/generator.js';
+import { generateTrack, trackParamsFromSettings } from './track/generator.js';
 import { buildTrackVisual, applyThemeToScene, disposeObject } from './track/trackMesh.js';
 import { createSettingsForm } from './ui/settingsForm.js';
 import { createMinimap } from './ui/minimap.js';
+import { createInput } from './input.js';
+import { createKartState, stepKart, kartStats, resetKartToTrack } from './physics.js';
+import { createKartMesh } from './kartMesh.js';
+import { createChaseCamera } from './camera.js';
 
 const $ = (id) => document.getElementById(id);
+const lerpAngle = (a, b, t) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
 
 // --- Renderer i scena
 const renderer = new THREE.WebGLRenderer({ antialias: true, canvas: $('game') });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDER.maxPixelRatio));
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(RENDER.fov, 1, RENDER.near, RENDER.far);
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.maxPolarAngle = Math.PI * 0.49; // nie schodzimy pod podłoże
-
+const chase = createChaseCamera();
 const minimap = createMinimap($('minimap'));
+const input = createInput();
 
 // --- Stan
 let settings = defaultSettings();
 let randomTrackSeed = randomSeed(); // używany, gdy pole seeda jest puste
 let track = null;
 let visual = null;
+let stats = null;
+let kart = null; // stan fizyczny
+let prev = null; // stan z poprzedniego kroku (interpolacja)
+const kartColor = KART_COLORS[0];
+const kartMesh = createKartMesh(kartColor);
+scene.add(kartMesh.object);
 
 const form = createSettingsForm($('settings'), SETTINGS_SCHEMA, {
   onChange(key, value) {
@@ -45,10 +51,7 @@ form.setValues(settings);
 
 function rebuild() {
   const seed = settings.trackSeed || randomTrackSeed;
-  const t0 = performance.now();
   track = generateTrack(trackParamsFromSettings(settings, seed));
-  const genMs = performance.now() - t0;
-
   if (visual) {
     scene.remove(visual.group);
     disposeObject(visual.group);
@@ -56,48 +59,23 @@ function rebuild() {
   visual = buildTrackVisual(track);
   visual.debug.visible = $('showDebug').checked;
   scene.add(visual.group);
-  applyThemeToScene(scene, track.theme, $('showFog').checked);
-
+  applyThemeToScene(scene, track.theme, true);
   minimap.setTrack(track);
-  // Pola startowe jako kropki — test minimapy przed etapem 2.
-  minimap.draw(Array.from({ length: settings.minRacers }, (_, i) => ({ ...gridSlot(track, i), color: 0xffd166, isLocal: i === 0 })));
+  $('seedLabel').textContent = `Seed: ${seed} · ${Math.round(track.length)} m`;
 
-  frameCamera();
-  showStats(seed, genMs);
+  stats = kartStats(settings.speedClass);
+  kart = createKartState(track, 0);
+  prev = { x: kart.x, z: kart.z, heading: kart.heading };
+  chase.snap(viewOf(kart, 1));
 }
 
-function frameCamera() {
-  const { minX, maxX, minZ, maxZ } = track.bounds;
-  const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
-  const span = Math.max(maxX - minX, maxZ - minZ);
-  controls.target.set(cx, 0, cz);
-  camera.position.set(cx, span * 0.75, cz + span * 0.6);
-  controls.update();
+// --- Panel ustawień (Esc). Gdy otwarty, symulacja stoi.
+let paused = false;
+function setPaused(p) {
+  paused = p;
+  $('panel').hidden = !p;
+  if (!p) document.activeElement?.blur?.(); // klawisze wracają do gry
 }
-
-function showStats(seed, genMs) {
-  const lapSec = track.length / (KART.baseMaxSpeed * TRACK.avgSpeedFraction);
-  const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
-  const rows = [
-    ['Seed', seed],
-    ['Długość', `${Math.round(track.length)} m`],
-    ['Szac. okrążenie', `${lapSec.toFixed(0)} s`],
-    [`Wyścig (${settings.laps} okr.)`, fmt(lapSec * settings.laps)],
-    ['Checkpointy', track.checkpoints.length],
-    ['Skrzynki', track.itemBoxes.length],
-    ['Motyw', THEMES[track.themeId].label],
-    ['Próby generacji', track.attempts],
-    ['Czas generacji', `${genMs.toFixed(1)} ms`],
-  ];
-  $('stats').replaceChildren(...rows.map(([k, v]) => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<th>${k}</th><td></td>`;
-    tr.lastChild.textContent = v;
-    return tr;
-  }));
-}
-
-// --- Przyciski
 $('newTrack').addEventListener('click', () => {
   randomTrackSeed = randomSeed();
   settings = applySettingChange(settings, 'trackSeed', '');
@@ -108,21 +86,63 @@ $('pinSeed').addEventListener('click', () => {
   const next = applySettingChange(settings, 'trackSeed', track.seed);
   if (next) { settings = next; form.setValues(settings); }
 });
+$('resume').addEventListener('click', () => setPaused(false));
 $('showDebug').addEventListener('change', (e) => { visual.debug.visible = e.target.checked; });
-$('showFog').addEventListener('change', (e) => applyThemeToScene(scene, track.theme, e.target.checked));
+
+// Stan do rysowania: interpolacja między krokami fizyki (płynność przy
+// dowolnym odświeżaniu monitora).
+function viewOf(k, alpha, lookBack = false) {
+  return {
+    x: prev.x + (k.x - prev.x) * alpha,
+    z: prev.z + (k.z - prev.z) * alpha,
+    heading: lerpAngle(prev.heading, k.heading, alpha),
+    speed: k.speed,
+    steer: k.steer,
+    drift: k.drift,
+    boostTime: k.boostTime,
+    speedFrac: Math.abs(k.speed) / stats.maxSpeed,
+    boosting: k.boostTime > 0,
+    driftDir: k.drift.active ? k.drift.dir : 0,
+    lookBack,
+  };
+}
 
 // --- Pętla
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
-  camera.aspect = w / h;
-  camera.updateProjectionMatrix();
+  chase.setAspect(w / h);
 }
 window.addEventListener('resize', resize);
 resize();
 rebuild();
+setPaused(false);
 
+const clock = new THREE.Clock();
+let acc = 0;
 renderer.setAnimationLoop(() => {
-  controls.update();
-  renderer.render(scene, camera);
+  const dt = Math.min(clock.getDelta(), PHYSICS.fixedDt * PHYSICS.maxStepsPerFrame);
+  const ctl = input.read();
+  if (ctl.menuPressed) setPaused(!paused);
+
+  if (!paused) {
+    if (ctl.resetPressed) {
+      resetKartToTrack(kart, track);
+      prev = { x: kart.x, z: kart.z, heading: kart.heading };
+    }
+    acc += dt;
+    while (acc >= PHYSICS.fixedDt) {
+      prev = { x: kart.x, z: kart.z, heading: kart.heading };
+      stepKart(kart, ctl, track, stats, PHYSICS.fixedDt);
+      acc -= PHYSICS.fixedDt;
+    }
+  }
+
+  const view = viewOf(kart, paused ? 1 : acc / PHYSICS.fixedDt, ctl.lookBack);
+  kartMesh.update(view, paused ? 0 : dt);
+  chase.update(view, dt);
+  minimap.draw([{ x: view.x, z: view.z, color: kartColor, isLocal: true }]);
+  $('speed').textContent = Math.round(Math.abs(kart.speed) * 3.6);
+  $('hud').dataset.surface = kart.surface;
+  renderer.render(scene, chase.camera);
 });
