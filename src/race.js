@@ -66,8 +66,10 @@ export function updateRace(race, dt, karts) {
     r.wrongWayTime = isWrongWay(race.track, k) ? r.wrongWayTime + dt : 0;
   }
 
-  // Koniec: wszyscy ludzie na mecie albo minął limit od pierwszego finiszu.
-  const humansDone = race.racers.every((r) => !r.isHuman || r.finishTime !== null);
+  // Koniec: wszyscy ludzie na mecie (bez ludzi — wszyscy) albo minął
+  // limit od pierwszego finiszu.
+  const anyHuman = race.racers.some((r) => r.isHuman);
+  const humansDone = race.racers.every((r) => (anyHuman && !r.isHuman) || r.finishTime !== null);
   const timedOut = race.firstFinishTime !== null && race.time - race.firstFinishTime >= RACE.finishTimeoutSeconds;
   if (humansDone || timedOut) {
     race.phase = 'finished';
@@ -137,6 +139,13 @@ export function standings(race) {
     if (fa) return a.finishTime - b.finishTime;
     return b.progress - a.progress;
   });
+}
+
+// Szacowany czas mety dla nieukończonych (średnie tempo do tej pory).
+export function estimatedFinish(race, r) {
+  if (r.finishTime !== null) return r.finishTime;
+  if (r.progress <= 0 || race.time <= 0) return null;
+  return (race.time * race.laps * race.track.length) / r.progress;
 }
 
 // 83.456 -> "1:23.45"

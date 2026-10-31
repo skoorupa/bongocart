@@ -4,10 +4,17 @@
 // Tylko wyświetla stan z race.js — żadnej logiki wyścigu tutaj.
 // =====================================================================
 import { RACE } from '../config.js';
-import { displayLap, formatTime, showWrongWay, standings } from '../race.js';
+import { displayLap, estimatedFinish, formatTime, showWrongWay, standings } from '../race.js';
 
 const $ = (id) => document.getElementById(id);
 const hex = (c) => `#${c.toString(16).padStart(6, '0')}`;
+
+// Ukończony: czas; w trasie: szacunek "~"; bez postępu: "nie ukończył".
+function finishLabel(race, r) {
+  if (r.finishTime !== null) return formatTime(r.finishTime);
+  const est = estimatedFinish(race, r);
+  return est === null ? 'nie ukończył' : `~${formatTime(est)}`;
+}
 
 export function createHud() {
   const el = {
@@ -98,7 +105,7 @@ export function createHud() {
         const cells = [
           `${i + 1}.`,
           r.name,
-          r.finishTime === null ? 'nie ukończył' : formatTime(r.finishTime),
+          finishLabel(race, r),
           formatTime(r.bestLap),
         ];
         cells.forEach((text, c) => {

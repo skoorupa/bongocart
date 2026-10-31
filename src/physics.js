@@ -194,6 +194,31 @@ function collideWithTrack(kart, track) {
   kart.speed = kart.vx * Math.sin(kart.heading) + kart.vz * Math.cos(kart.heading);
 }
 
+// Zderzenia kart-kart: okręgi o promieniu KART.radius. Rozsuwamy po
+// połowie i wymieniamy prędkość wzdłuż normalnej (odbicie z bumpRestitution).
+export function collideKarts(karts) {
+  const minD = KART.radius * 2;
+  for (let i = 0; i < karts.length; i++) {
+    for (let j = i + 1; j < karts.length; j++) {
+      const a = karts[i], b = karts[j];
+      const dx = b.x - a.x, dz = b.z - a.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= minD * minD) continue;
+      const d = Math.sqrt(d2) || 1e-6;
+      const nx = d2 ? dx / d : 1, nz = d2 ? dz / d : 0;
+      const push = (minD - d) / 2;
+      a.x -= nx * push; a.z -= nz * push;
+      b.x += nx * push; b.z += nz * push;
+      const vn = (b.vx - a.vx) * nx + (b.vz - a.vz) * nz;
+      if (vn >= 0) continue; // już się oddalają
+      const imp = (-(1 + KART.bumpRestitution) * vn) / 2;
+      a.vx -= nx * imp; a.vz -= nz * imp;
+      b.vx += nx * imp; b.vz += nz * imp;
+      for (const k of [a, b]) k.speed = k.vx * Math.sin(k.heading) + k.vz * Math.cos(k.heading);
+    }
+  }
+}
+
 // Ustawienie karta z powrotem na środku toru (klawisz R / zablokowanie).
 export function resetKartToTrack(kart, track) {
   const q = nearestOnTrack(track, kart.x, kart.z);

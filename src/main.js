@@ -1,7 +1,8 @@
 // =====================================================================
-// main.js — ETAP 3: lobby (ustawienia, podgląd toru) -> odliczanie ->
-// wyścig na N okrążeń -> wyniki -> lobby. Jeden kart lokalny; w etapie 4
-// dojdą boty, w etapie 6 sieć (lobby to wtedy pokój PeerJS).
+// main.js — ETAP 4: lobby (ustawienia, podgląd toru i stawki) ->
+// odliczanie -> wyścig z botami -> wyniki -> lobby.
+// Symulację liczy game.js; tutaj tylko wejście, rysowanie i UI.
+// W etapie 6 dojdzie sieć (lobby = pokój PeerJS, host liczy game.js).
 // =====================================================================
 import * as THREE from 'three';
 import { SETTINGS_SCHEMA, RENDER, PHYSICS, KART_COLORS, RACE } from './config.js';
@@ -11,10 +12,9 @@ import { buildTrackVisual, applyThemeToScene, disposeObject } from './track/trac
 import { createSettingsForm } from './ui/settingsForm.js';
 import { createMinimap } from './ui/minimap.js';
 import { createInput } from './input.js';
-import { createKartState, stepKart, kartStats, resetKartToTrack } from './physics.js';
 import { createKartMesh } from './kartMesh.js';
 import { createChaseCamera } from './camera.js';
-import { createRace, updateRace } from './race.js';
+import { createGame } from './game.js';
 import { createHud } from './ui/hud.js';
 
 const $ = (id) => document.getElementById(id);
@@ -28,22 +28,22 @@ const chase = createChaseCamera();
 const minimap = createMinimap($('minimap'));
 const input = createInput();
 const hud = createHud();
-const LOCAL_ID = 'local';
-const NEUTRAL = { throttle: 0, brake: 0, steer: 0, drift: false };
+
+// Gracz lokalny (imię i kolor wybierane w lobby w etapie 6).
+const LOCAL = { id: 'local', name: 'Ty', color: KART_COLORS[0] };
 
 // --- Stan
 let settings = defaultSettings();
 let randomTrackSeed = randomSeed(); // używany, gdy pole seeda jest puste
+let trackKey = null; // parametry, z których powstał bieżący tor
 let track = null;
 let visual = null;
-let stats = null;
-let kart = null; // stan fizyczny
-let prev = null; // stan z poprzedniego kroku (interpolacja)
-let race = null; // null = lobby
+let game = null; // w lobby: podgląd stawki (bez kroków symulacji)
+let inRace = false;
+let paused = false;
 let resultsIn = null; // odliczanie do pokazania tabeli wyników
-const kartColor = KART_COLORS[0];
-const kartMesh = createKartMesh(kartColor);
-scene.add(kartMesh.object);
+const meshes = new Map(); // id -> mesh karta
+const prev = new Map(); // id -> stan z poprzedniego kroku (interpolacja)
 
 const form = createSettingsForm($('settings'), SETTINGS_SCHEMA, {
   onChange(key, value) {
@@ -57,36 +57,56 @@ const form = createSettingsForm($('settings'), SETTINGS_SCHEMA, {
 });
 form.setValues(settings);
 
+// Tor generujemy tylko, gdy zmieniły się jego parametry; resztę ustawień
+// (okrążenia, boty, klasa...) odświeża nowa gra.
 function rebuild() {
   const seed = settings.trackSeed || randomTrackSeed;
-  track = generateTrack(trackParamsFromSettings(settings, seed));
-  if (visual) {
-    scene.remove(visual.group);
-    disposeObject(visual.group);
+  const params = trackParamsFromSettings(settings, seed);
+  const key = JSON.stringify(params);
+  if (key !== trackKey) {
+    trackKey = key;
+    track = generateTrack(params);
+    if (visual) {
+      scene.remove(visual.group);
+      disposeObject(visual.group);
+    }
+    visual = buildTrackVisual(track);
+    visual.debug.visible = $('showDebug').checked;
+    scene.add(visual.group);
+    applyThemeToScene(scene, track.theme, true);
+    minimap.setTrack(track);
+    $('seedLabel').textContent = `Seed: ${seed} · ${Math.round(track.length)} m`;
   }
-  visual = buildTrackVisual(track);
-  visual.debug.visible = $('showDebug').checked;
-  scene.add(visual.group);
-  applyThemeToScene(scene, track.theme, true);
-  minimap.setTrack(track);
-  $('seedLabel').textContent = `Seed: ${seed} · ${Math.round(track.length)} m`;
-
-  stats = kartStats(settings.speedClass);
-  resetKarts();
+  newGame();
 }
 
-function resetKarts() {
-  kart = createKartState(track, 0);
-  prev = { x: kart.x, z: kart.z, heading: kart.heading };
-  chase.snap(viewOf(kart, 1));
+function newGame() {
+  game = createGame({ track, settings, humans: [LOCAL], seed: randomSeed() });
+  for (const m of meshes.values()) {
+    scene.remove(m.object);
+    m.dispose();
+  }
+  meshes.clear();
+  prev.clear();
+  for (const r of game.roster) {
+    const m = createKartMesh(r.color);
+    meshes.set(r.id, m);
+    scene.add(m.object);
+  }
+  savePrev();
+  for (const [id, m] of meshes) m.update(viewOf(id, 1), 0);
+  chase.snap(viewOf(LOCAL.id, 1));
+}
+
+function savePrev() {
+  for (const [id, k] of game.karts) prev.set(id, { x: k.x, z: k.z, heading: k.heading });
 }
 
 // --- Tryby: lobby (panel ustawień) i wyścig. Ustawienia są zablokowane
 // w trakcie wyścigu. Pauza (Esc) działa tylko w grze lokalnej — w sieci
 // (etap 6) Esc pokaże menu bez zatrzymywania symulacji.
-let paused = false;
 function enterLobby() {
-  race = null;
+  inRace = false;
   resultsIn = null;
   paused = false;
   $('pause').hidden = true;
@@ -94,15 +114,11 @@ function enterLobby() {
   hud.setRaceVisible(false);
   form.setReadOnly(false);
   $('panel').hidden = false;
-  resetKarts();
+  newGame();
 }
 function startRace() {
-  resetKarts();
-  race = createRace({
-    track,
-    laps: settings.laps,
-    racers: [{ id: LOCAL_ID, name: 'Ty', color: kartColor, isHuman: true }],
-  });
+  newGame();
+  inRace = true;
   form.setReadOnly(true);
   $('panel').hidden = true;
   hud.setRaceVisible(true);
@@ -131,16 +147,17 @@ $('showDebug').addEventListener('change', (e) => { visual.debug.visible = e.targ
 
 // Stan do rysowania: interpolacja między krokami fizyki (płynność przy
 // dowolnym odświeżaniu monitora).
-function viewOf(k, alpha, lookBack = false) {
+function viewOf(id, alpha, lookBack = false) {
+  const k = game.karts.get(id), p = prev.get(id);
   return {
-    x: prev.x + (k.x - prev.x) * alpha,
-    z: prev.z + (k.z - prev.z) * alpha,
-    heading: lerpAngle(prev.heading, k.heading, alpha),
+    x: p.x + (k.x - p.x) * alpha,
+    z: p.z + (k.z - p.z) * alpha,
+    heading: lerpAngle(p.heading, k.heading, alpha),
     speed: k.speed,
     steer: k.steer,
     drift: k.drift,
     boostTime: k.boostTime,
-    speedFrac: Math.abs(k.speed) / stats.maxSpeed,
+    speedFrac: Math.abs(k.speed) / game.stats.maxSpeed,
     boosting: k.boostTime > 0,
     driftDir: k.drift.active ? k.drift.dir : 0,
     lookBack,
@@ -160,7 +177,12 @@ enterLobby();
 
 // Podgląd stanu z konsoli (http://.../?debug) — do strojenia i testów ręcznych.
 if (new URLSearchParams(location.search).has('debug')) {
-  window.bongo = { get kart() { return kart; }, get track() { return track; }, get race() { return race; } };
+  window.bongo = {
+    get game() { return game; },
+    get kart() { return game.karts.get(LOCAL.id); },
+    get track() { return track; },
+    get race() { return inRace ? game.race : null; },
+  };
 }
 
 const clock = new THREE.Clock();
@@ -168,25 +190,18 @@ let acc = 0;
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), PHYSICS.fixedDt * PHYSICS.maxStepsPerFrame);
   const ctl = input.read();
-  if (ctl.menuPressed && race && resultsIn === null && $('results').hidden) setPaused(!paused);
+  if (ctl.menuPressed && inRace && resultsIn === null && $('results').hidden) setPaused(!paused);
 
-  const simulate = race && !paused;
+  const simulate = inRace && !paused;
   if (simulate) {
-    const me = race.racers[0];
-    // Sterowanie tylko w trakcie jazdy; w odliczaniu i po mecie kart toczy się sam.
-    const canDrive = race.phase === 'racing' && me.finishTime === null;
-    if (ctl.resetPressed && canDrive) {
-      resetKartToTrack(kart, track);
-      prev = { x: kart.x, z: kart.z, heading: kart.heading };
-    }
     acc += dt;
-    const karts = new Map([[LOCAL_ID, kart]]);
+    let reset = ctl.resetPressed; // jednorazowe — tylko w pierwszym kroku
     while (acc >= PHYSICS.fixedDt) {
-      prev = { x: kart.x, z: kart.z, heading: kart.heading };
-      const live = race.phase === 'racing' && me.finishTime === null; // zmienia się w trakcie pętli
-      stepKart(kart, live ? ctl : NEUTRAL, track, stats, PHYSICS.fixedDt);
-      const events = updateRace(race, PHYSICS.fixedDt, karts);
-      hud.handleEvents(events, LOCAL_ID, race);
+      savePrev();
+      const inputs = new Map([[LOCAL.id, { ...ctl, reset }]]);
+      reset = false;
+      const events = game.step(PHYSICS.fixedDt, inputs);
+      hud.handleEvents(events, LOCAL.id, game.race);
       if (events.some((e) => e.type === 'end')) resultsIn = RACE.resultsDelaySeconds;
       acc -= PHYSICS.fixedDt;
     }
@@ -194,17 +209,22 @@ renderer.setAnimationLoop(() => {
       resultsIn -= dt;
       if (resultsIn <= 0) {
         resultsIn = null;
-        hud.showResults(race, LOCAL_ID, enterLobby);
+        hud.showResults(game.race, LOCAL.id, enterLobby);
       }
     }
-    hud.update(race, LOCAL_ID, dt);
+    hud.update(game.race, LOCAL.id, dt);
   }
 
-  const view = viewOf(kart, simulate ? acc / PHYSICS.fixedDt : 1, ctl.lookBack && simulate);
-  kartMesh.update(view, simulate ? dt : 0);
-  chase.update(view, dt);
-  minimap.draw([{ x: view.x, z: view.z, color: kartColor, isLocal: true }]);
-  $('speed').textContent = Math.round(Math.abs(kart.speed) * 3.6);
-  $('hud').dataset.surface = kart.surface;
+  const alpha = simulate ? acc / PHYSICS.fixedDt : 1;
+  for (const [id, m] of meshes) m.update(viewOf(id, alpha), simulate ? dt : 0);
+  const me = viewOf(LOCAL.id, alpha, ctl.lookBack && simulate);
+  chase.update(me, dt);
+  minimap.draw(game.roster.map((r) => {
+    const v = r.id === LOCAL.id ? me : viewOf(r.id, alpha);
+    return { x: v.x, z: v.z, color: r.color, isLocal: r.id === LOCAL.id };
+  }));
+  const k = game.karts.get(LOCAL.id);
+  $('speed').textContent = Math.round(Math.abs(k.speed) * 3.6);
+  $('hud').dataset.surface = k.surface;
   renderer.render(scene, chase.camera);
 });

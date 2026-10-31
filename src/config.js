@@ -55,6 +55,7 @@ export const KART = {
   wallRestitution: 0.25, // odbicie od bandy (0..1)
   wallSpeedKeep: 0.85, // ułamek prędkości zachowany przy uderzeniu
   wallHitMinSpeed: 2, // poniżej: tylko "ślizg" wzdłuż bandy
+  bumpRestitution: 0.6, // odbicie przy zderzeniu kart (0 = plastycznie, 1 = sprężyście)
   wallAlign: 0.12, // przy kontakcie kurs obraca się w stronę bandy (ułamek na krok) — brak "zakleszczenia"
 
   // Model (metry).
@@ -262,11 +263,37 @@ export const ITEMS = {
   },
 };
 
+// Poziomy botów. speedFactor ogranicza prędkość docelową (× v.max klasy),
+// cornerFactor — jak odważnie wchodzą w zakręty, lineNoise — jak bardzo
+// "pływają" wokół linii jazdy [m].
 export const BOT_DIFFICULTIES = {
-  easy: { label: 'Łatwy' },
-  medium: { label: 'Średni' },
-  hard: { label: 'Trudny' },
+  easy: { label: 'Łatwy', speedFactor: 0.8, cornerFactor: 0.8, lineNoise: 2.5, steerGain: 2.5, drift: false },
+  medium: { label: 'Średni', speedFactor: 0.9, cornerFactor: 0.92, lineNoise: 1.2, steerGain: 3, drift: true },
+  hard: { label: 'Trudny', speedFactor: 0.98, cornerFactor: 1.0, lineNoise: 0.4, steerGain: 3.5, drift: true },
 };
+
+// Wspólne parametry kierowcy AI (boty, gracz po mecie, rozłączony gracz).
+export const AI = {
+  lookAheadMin: 6, // [m] punkt celowania przed kartem
+  lookAheadTime: 0.3, // [s] + tyle sekund jazdy
+  brakeHysteresis: 1, // [m/s] ponad prędkością docelową, zanim zahamuje
+  brakeScanExtra: 15, // [m] skanowania zakrętów ponad drogę hamowania
+  noisePeriods: [7, 13], // [s] dwie sinusoidy "pływania" po torze
+  avoid: { ahead: 12, width: 2.6, shift: 3.5, rate: 5 }, // omijanie kart z przodu
+  drift: {
+    lookMeters: 10, // zakręt musi zaczynać się tyle przed kartem
+    enterRadius: 45, // [m] wchodzi w dryf w zakręcie ciaśniejszym niż to
+    exitRadius: 70, // wychodzi, gdy zakręt łagodnieje
+    minArcMeters: 35, // zakręt musi być na tyle długi, żeby naładować mini-turbo
+    maxHeadingError: 0.6, // [rad] przerywa dryf, gdy wynosi go z linii
+  },
+  stuck: { speed: 2, time: 1.5, reverseTime: 1, resetTime: 6 },
+  // Lekkie wyrównywanie szans: boty przed najlepszym człowiekiem zwalniają,
+  // za nim jadą bliżej swojego maksimum.
+  rubberBand: { distance: 150, strength: 0.08 },
+};
+
+export const BOT_NAMES = ['Bongo', 'Kluska', 'Turbo Tomek', 'Pani Pędzik', 'Śrubka', 'Zygzak', 'Gumiś', 'Dr Drift'];
 
 export const MAX_RACERS = 8;
 

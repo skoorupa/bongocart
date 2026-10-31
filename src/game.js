@@ -1,0 +1,86 @@
+// =====================================================================
+// game.js — symulacja jednego wyścigu: wszystkie karty, kierowcy AI,
+// kolizje, przebieg wyścigu. Czysty JS (bez Three.js i DOM) — w etapie 6
+// liczy to host i rozsyła stan do graczy.
+//
+// Kto steruje kartem:
+//   odliczanie                        -> nikt (stoi)
+//   człowiek w trakcie jazdy          -> jego sterowanie (inputs)
+//   bot / człowiek po mecie / koniec  -> kierowca AI
+// =====================================================================
+import { AI, BOT_NAMES, KART_COLORS, MAX_RACERS } from './config.js';
+import { createKartState, stepKart, kartStats, resetKartToTrack, collideKarts } from './physics.js';
+import { createDriver } from './ai.js';
+import { createRace, updateRace } from './race.js';
+import { deriveSeed } from './rng.js';
+
+const NEUTRAL = { throttle: 0, brake: 0, steer: 0, drift: false };
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+// Skład: ludzie + boty do settings.minRacers (maks. MAX_RACERS; limit
+// ludzi pilnuje lobby).
+// Boty stoją z przodu stawki, ludzie za nimi — jest kogo wyprzedzać.
+export function buildRoster(settings, humans) {
+  const total = Math.max(Math.min(settings.minRacers, MAX_RACERS), humans.length);
+  const used = new Set(humans.map((h) => h.color));
+  const freeColors = KART_COLORS.filter((c) => !used.has(c));
+  const bots = Array.from({ length: total - humans.length }, (_, i) => ({
+    id: `bot${i}`,
+    name: BOT_NAMES[i % BOT_NAMES.length],
+    color: freeColors[i % freeColors.length],
+    isHuman: false,
+  }));
+  return [...bots, ...humans.map((h) => ({ ...h, isHuman: true }))];
+}
+
+// humans: [{id, name, color}]; seed: do losowości botów (deterministyczna).
+export function createGame({ track, settings, humans, seed }) {
+  const roster = buildRoster(settings, humans);
+  const race = createRace({ track, laps: settings.laps, racers: roster });
+  const stats = kartStats(settings.speedClass);
+  const karts = new Map(roster.map((r, slot) => [r.id, createKartState(track, slot)]));
+  const drivers = new Map();
+  const driverOf = (id) => {
+    if (!drivers.has(id)) drivers.set(id, createDriver(track, settings.botDifficulty, deriveSeed(seed, 'bot', id)));
+    return drivers.get(id);
+  };
+  const kartList = [...karts.values()];
+
+  // Gumka: odległość bota od najlepszego człowieka, który jeszcze jedzie.
+  function speedMulFor(r, leaderProgress) {
+    if (r.isHuman || leaderProgress === null) return 1;
+    const rb = AI.rubberBand;
+    return 1 + clamp((leaderProgress - r.progress) / rb.distance, -1, 1) * rb.strength;
+  }
+
+  return {
+    track,
+    race,
+    roster,
+    karts,
+    stats,
+
+    // inputs: Map id -> sterowanie człowieka (z input.js / z sieci).
+    // Zwraca zdarzenia wyścigu (patrz race.js).
+    step(dt, inputs) {
+      const racing = race.phase === 'racing';
+      const live = race.racers.filter((r) => r.isHuman && r.finishTime === null);
+      const leaderProgress = live.length ? Math.max(...live.map((r) => r.progress)) : null;
+
+      for (const r of race.racers) {
+        const kart = karts.get(r.id);
+        let input;
+        if (race.phase === 'countdown') input = NEUTRAL;
+        else if (r.isHuman && racing && r.finishTime === null) input = inputs.get(r.id) ?? NEUTRAL;
+        else {
+          const others = kartList.filter((k) => k !== kart);
+          input = driverOf(r.id).control(kart, { others, stats, speedMul: speedMulFor(r, leaderProgress) }, dt);
+        }
+        if (input.reset) resetKartToTrack(kart, track);
+        stepKart(kart, input, track, stats, dt);
+      }
+      if (settings.kartCollisions) collideKarts(kartList);
+      return updateRace(race, dt, karts);
+    },
+  };
+}
