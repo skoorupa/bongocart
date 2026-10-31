@@ -1,0 +1,9 @@
+{
+  "name": "bongocart",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/",
+    "serve": "npx --yes http-server -c-1 -p 8080 ."
+  }
+}

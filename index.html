@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BongoCart</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Three.js z CDN — bez bundlera, działa na hostingu statycznym. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <aside id="panel">
+    <h1>BongoCart <small>podgląd toru · etap 1</small></h1>
+    <div id="settings"></div>
+    <div class="buttons">
+      <button id="newTrack">🎲 Nowy losowy tor</button>
+      <button id="pinSeed" title="Wpisz bieżący seed do ustawień, żeby powtórzyć ten tor">📌 Przypnij seed</button>
+    </div>
+    <label class="toggle"><input type="checkbox" id="showDebug" checked> Linia jazdy botów, checkpointy, pola startowe</label>
+    <label class="toggle"><input type="checkbox" id="showFog"> Mgła (jak w grze)</label>
+    <table id="stats"></table>
+    <p class="hint">LPM: obrót · PPM: przesuwanie · kółko: zoom</p>
+  </aside>
+
+  <canvas id="minimap"></canvas>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
