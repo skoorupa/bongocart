@@ -352,6 +352,33 @@ export const RACE = {
 };
 
 // ---------------------------------------------------------------------
+// Sieć (PeerJS, gwiazda: host liczy grę, klienci wysyłają sterowanie).
+// ---------------------------------------------------------------------
+export const NET = {
+  peerPrefix: 'bongocart-v1-', // id hosta w PeerJS = prefiks + kod pokoju
+  codeLength: 5,
+  codeAlphabet: 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', // bez 0/O, 1/I
+  connectTimeoutSeconds: 10,
+  heartbeatSeconds: 1, // ping co tyle
+  heartbeatTimeoutSeconds: 3, // brak wiadomości tak długo = rozłączenie
+  snapshotEverySteps: 6, // co ile kroków fizyki host wysyła stan (120/6 = 20 Hz)
+  // Klient: inne karty rysujemy z opóźnieniem, interpolując między stanami.
+  interpDelaySeconds: 0.1,
+  interpResyncSeconds: 0.3, // większy rozjazd zegara = skok zamiast korekty
+  interpCorrection: 0.1, // ułamek rozjazdu korygowany przy każdym stanie
+  snapshotBufferSeconds: 1,
+  // Host: kolejka sterowania od klienta (w krokach fizyki).
+  inputBufferMin: 2, // tyle czekamy na start, żeby wygładzić wahania sieci
+  inputBufferMax: 24, // więcej = zegar klienta ucieka, wyrzucamy najstarsze
+  maxInputsPerMessage: 60,
+  inputHistoryMax: 240, // klient: niepotwierdzone sterowanie do powtórki
+  correctionDecay: 10, // [1/s] wygładzanie korekty pozycji własnego karta
+  correctionTeleport: 6, // [m] większa korekta = skok bez wygładzania
+  nameMaxLength: 16,
+  profileStorageKey: 'bongocart.profile',
+};
+
+// ---------------------------------------------------------------------
 // Motywy kolorystyczne (kolory jako 0xRRGGBB).
 // ---------------------------------------------------------------------
 export const THEMES = {

@@ -228,3 +228,23 @@ button.secondary { background: #3a3a55; color: var(--text); }
 #resultsTable td { padding: 5px 10px 5px 0; }
 #resultsTable tr.me td { color: var(--accent); font-weight: 700; }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+
+/* --- Etap 6: lobby sieciowe --- */
+.block { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
+.setting input[type=text]#playerName, .join input {
+  padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line);
+  background: #23233a; color: var(--text); font: inherit;
+}
+#colorPicker { display: flex; flex-wrap: wrap; gap: 6px; }
+.swatch { flex: 0 0 26px; width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid transparent; }
+.swatch[aria-pressed="true"] { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+.swatch:disabled { opacity: 0.25; cursor: not-allowed; }
+.join { display: flex; gap: 8px; margin-top: 8px; }
+.join input { flex: 1; min-width: 0; text-transform: uppercase; letter-spacing: 2px; }
+.join button { flex: 0 0 auto; padding: 8px 14px; }
+.room-code { display: flex; align-items: center; gap: 8px; }
+.room-code b { font-size: 20px; letter-spacing: 3px; color: var(--accent); }
+button.small { flex: 0 0 auto; padding: 4px 8px; font-size: 12px; margin-left: auto; }
+#players { list-style: none; padding: 0; margin: 10px 0; }
+#players li { padding: 3px 0; }
+#roomSolo[hidden], #roomInfo[hidden] { display: none; }

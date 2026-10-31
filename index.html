@@ -14,6 +14,8 @@
       }
     }
   </script>
+  <!-- PeerJS (WebRTC) — globalne Peer; sieć tylko między przeglądarkami. -->
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
   <canvas id="game"></canvas>
@@ -40,9 +42,32 @@
     </div>
   </div>
 
-  <!-- Lobby (w etapie 6 dojdą gracze i sieć). -->
+  <!-- Lobby: profil, pokój (PeerJS), ustawienia (edytuje tylko host). -->
   <aside id="panel" hidden>
-    <h1>BongoCart <small>lobby · etap 5</small></h1>
+    <h1>BongoCart <small>lobby · etap 6</small></h1>
+
+    <section class="block">
+      <label class="setting"><span class="setting-label">Twoje imię</span>
+        <input type="text" id="playerName" placeholder="Gracz" autocomplete="nickname"></label>
+      <div class="setting"><span class="setting-label">Kolor karta</span><div id="colorPicker"></div></div>
+    </section>
+
+    <section class="block">
+      <div id="roomSolo">
+        <button id="createRoom" class="wide">🌐 Utwórz pokój dla znajomych</button>
+        <div class="join">
+          <input type="text" id="roomCode" placeholder="KOD" aria-label="Kod pokoju" autocomplete="off">
+          <button id="joinRoom">Dołącz</button>
+        </div>
+      </div>
+      <div id="roomInfo" hidden>
+        <div class="room-code">Pokój <b id="roomCodeLabel"></b> <button id="copyLink" class="small">🔗 Kopiuj link</button></div>
+        <ul id="players"></ul>
+        <button id="leaveRoom" class="wide secondary">Opuść pokój</button>
+      </div>
+      <p class="hint" id="netStatus"></p>
+    </section>
+
     <div id="settings"></div>
     <div class="buttons">
       <button id="newTrack">🎲 Nowy losowy tor</button>
@@ -51,11 +76,12 @@
     <label class="toggle"><input type="checkbox" id="showDebug"> Linia jazdy botów, checkpointy, pola startowe</label>
     <p class="hint" id="seedLabel"></p>
     <button id="startRace" class="wide">🏁 Start wyścigu</button>
+    <p class="hint" id="startHint"></p>
   </aside>
 
   <div id="pause" class="overlay" hidden>
     <div class="card">
-      <h2>Pauza</h2>
+      <h2 id="pauseTitle">Pauza</h2>
       <button id="resume" class="wide">▶ Wznów (Esc)</button>
       <button id="quitRace" class="wide secondary">Wróć do lobby</button>
     </div>
