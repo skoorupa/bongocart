@@ -157,7 +157,7 @@ function setGame(g) {
   meshes.clear();
   prev.clear();
   for (const r of game.roster) {
-    const m = createKartMesh(r.color);
+    const m = createKartMesh(r.color, r.id === localId ? null : r.name);
     meshes.set(r.id, m);
     scene.add(m.object);
   }
@@ -509,7 +509,11 @@ renderer.setAnimationLoop(() => {
   // Klient: inne karty są już zinterpolowane (prev = bieżący), więc alpha
   // działa tylko na własny kart między krokami predykcji.
   const alpha = running ? acc / PHYSICS.fixedDt : 1;
-  for (const [id, m] of meshes) m.update(viewOf(id, alpha), running ? dt : 0);
+  for (const [id, m] of meshes) {
+    const v = viewOf(id, alpha);
+    m.update(v, running ? dt : 0);
+    m.setLabelDistance(Math.hypot(v.x - chase.camera.position.x, v.z - chase.camera.position.z));
+  }
   itemsView.update(game.items, running || !inRace ? dt : 0);
   const followId = game.karts.has(localId) ? localId : game.roster[0].id;
   const me = viewOf(followId, alpha, ctl.lookBack && running && !menuOpen);

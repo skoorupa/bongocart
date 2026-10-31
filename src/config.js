@@ -238,6 +238,13 @@ export const RENDER = {
   debugLineY: 0.4,
   sunOffset: [120, 220, 80],
   minimapSize: 200,
+  // Nick nad kartem (wszyscy poza tobą).
+  nameTag: {
+    height: 2.6, // [m] nad ziemią
+    worldHeight: 0.55, // [m] wysokość napisu w świecie (szerokość wg tekstu)
+    fontPx: 48, // rozdzielczość tekstury
+    maxDistance: 90, // [m] dalej nie pokazujemy (bałagan na horyzoncie)
+  },
   minimapPadding: 12,
 };
 

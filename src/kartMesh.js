@@ -3,13 +3,48 @@
 // "bongo" — okrągła postać w kasku). Brak zewnętrznych modeli.
 // =====================================================================
 import * as THREE from 'three';
-import { KART } from './config.js';
+import { KART, RENDER } from './config.js';
 
 const DRIFT_SPARK_COLORS = [0xffffff, 0x4fc3ff, 0xff9f1c]; // poziom 0, 1, 2
 
 const lambert = (color, extra = {}) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...extra });
 
-export function createKartMesh(color) {
+// Nick jako sprite z tekstury canvas: biały tekst z obrysem, pasek w kolorze karta.
+function createNameTag(name, color) {
+  const t = RENDER.nameTag;
+  const pad = t.fontPx * 0.4;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const font = `700 ${t.fontPx}px system-ui, sans-serif`;
+  ctx.font = font;
+  canvas.width = Math.ceil(ctx.measureText(name).width + pad * 2);
+  canvas.height = Math.ceil(t.fontPx * 1.5);
+  ctx.font = font; // zmiana rozmiaru canvas czyści ustawienia
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+  ctx.beginPath();
+  ctx.roundRect(0, 0, canvas.width, canvas.height, canvas.height / 3);
+  ctx.fill();
+  ctx.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+  ctx.fillRect(pad, canvas.height - t.fontPx * 0.18, canvas.width - pad * 2, t.fontPx * 0.1);
+  ctx.lineWidth = t.fontPx * 0.12;
+  ctx.strokeStyle = '#000';
+  ctx.strokeText(name, canvas.width / 2, canvas.height * 0.45);
+  ctx.fillStyle = '#fff';
+  ctx.fillText(name, canvas.width / 2, canvas.height * 0.45);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthWrite: false, fog: false }));
+  sprite.scale.set((t.worldHeight * canvas.width) / canvas.height, t.worldHeight, 1);
+  sprite.position.y = t.height;
+  sprite.renderOrder = 1; // po przezroczystych elementach toru
+  return sprite;
+}
+
+// name: nick nad kartem (null = bez napisu, np. własny kart).
+export function createKartMesh(color, name = null) {
   const root = new THREE.Group(); // pozycja i kurs
   const body = new THREE.Group(); // przechył, podskok, obrót w dryfie
   root.add(body);
@@ -103,6 +138,9 @@ export function createKartMesh(color) {
   shield.scale.set(1, 0.8, 1.15);
   root.add(shield);
 
+  const label = name ? createNameTag(name, color) : null;
+  if (label) root.add(label);
+
   let wheelSpin = 0, t = 0;
 
   return {
@@ -139,9 +177,14 @@ export function createKartMesh(color) {
       flame.visible = view.boostTime > 0;
       flame.scale.set(1, 0.8 + Math.abs(Math.sin(t * 50)) * 0.8, 1);
     },
+    // Nick widoczny tylko z bliska (distance: od kamery [m]).
+    setLabelDistance(distance) {
+      if (label) label.visible = distance < RENDER.nameTag.maxDistance;
+    },
     dispose() {
       root.traverse((o) => {
         o.geometry?.dispose();
+        o.material?.map?.dispose();
         o.material?.dispose();
       });
     },
