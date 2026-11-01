@@ -250,3 +250,20 @@ test('klient rozłącza się w wyścigu: bot przejmuje kart, reszta to widzi', (
   assert.deepEqual(seen.map((e) => e.id), [c2.id]);
   assert.ok(c1.game.race.racers.find((r) => r.id === c2.id).takenOver, 'klient wie o przejęciu');
 });
+
+test('inna wersja gry: host odrzuca', () => {
+  const env = setupRoom({ clients: 0 });
+  const sent = [];
+  let closed = false;
+  const host = createHostSession({
+    profile: { name: 'H', color: KART_COLORS[0] },
+    room: env.room,
+    send: (peer, msg) => sent.push(msg),
+    broadcast: () => {},
+    disconnect: () => { closed = true; },
+  });
+  host.handleMessage('x', { t: 'hello', profile: { name: 'stary' }, version: '0.0.1' });
+  assert.deepEqual(sent.map((m) => m.reason), ['version']);
+  assert.ok(closed);
+  assert.equal(host.lobby.players.length, 1);
+});

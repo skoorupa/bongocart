@@ -8,6 +8,7 @@
 // =====================================================================
 import { createLobby, addPlayer, updatePlayer, removePlayer, HOST_ID } from './lobby.js';
 import { createInputQueue, makeSnapshot } from './protocol.js';
+import { GAME_VERSION } from '../config.js';
 
 // room: {settings, seed} — ustawienia i efektywny seed toru (podgląd w lobby).
 export function createHostSession({ send, broadcast, disconnect, profile, room, onChange }) {
@@ -30,6 +31,13 @@ export function createHostSession({ send, broadcast, disconnect, profile, room, 
       if (!msg || typeof msg !== 'object') return;
       const id = players.get(peer);
       if (msg.t === 'hello' && !id) {
+        // Inna wersja gry (np. stara kopia z pamięci przeglądarki) = inna
+        // fizyka/protokół — nie wpuszczamy.
+        if (msg.version !== GAME_VERSION) {
+          send(peer, { t: 'reject', reason: 'version', version: GAME_VERSION });
+          disconnect(peer);
+          return;
+        }
         const p = addPlayer(lobby, `p-${peer}`, msg.profile);
         if (!p) {
           send(peer, { t: 'reject', reason: 'full' });
@@ -103,7 +111,7 @@ export function createHostSession({ send, broadcast, disconnect, profile, room, 
 // Klient: przekazuje wiadomości hosta do callbacków main.js.
 export function createClientSession({ send, profile, on }) {
   return {
-    handleOpen() { send({ t: 'hello', profile }); },
+    handleOpen() { send({ t: 'hello', profile, version: GAME_VERSION }); },
     handleMessage(msg) {
       if (!msg || typeof msg !== 'object') return;
       const handler = { welcome: on.welcome, lobby: on.lobby, start: on.start, snap: on.snapshot, abort: on.abort, reject: on.reject }[msg.t];

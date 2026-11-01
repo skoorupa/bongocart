@@ -91,6 +91,7 @@ export const CONTROLS = {
     lookBack: ['KeyC'],
     reset: ['KeyR'],
     menu: ['Escape'],
+    mute: ['KeyM'],
   },
   gamepad: {
     deadzone: 0.15,
@@ -120,6 +121,8 @@ export const CAMERA = {
   fovLerp: 4,
   driftRoll: 0.07, // pochylenie przy dryfie [rad]
   rollLerp: 5,
+  // Wstrząs kamery (uderzenie w bandę, trafienie).
+  shake: { decay: 6, maxAmplitude: 0.5, wallPerSpeed: 0.03, hit: 0.4, frequency: 37 },
 };
 
 // Klasy prędkości: mnożniki stosowane w JEDNYM miejscu (fizyka, etap 2).
@@ -358,6 +361,28 @@ export const RACE = {
   },
 };
 
+// Wersja gry: klient z inną wersją niż host nie dołączy (inny protokół
+// albo fizyka). Zmieniaj przy każdym wdrożeniu, które zmienia grę.
+export const GAME_VERSION = '0.8.0';
+
+// ---------------------------------------------------------------------
+// Dźwięk (Web Audio, generowany). Głośności 0..1, częstotliwości [Hz].
+// ---------------------------------------------------------------------
+export const AUDIO = {
+  storageKey: 'bongocart.audio',
+  masterVolume: 0.6,
+  sfxVolume: 0.25,
+  attack: 0.01, // [s] narastanie dźwięków
+  engine: {
+    idleHz: 55, rangeHz: 110, boostHz: 30, subRatio: 0.5,
+    filterHz: 500, filterRangeHz: 1400,
+    volume: 0.12, idleLevel: 0.35, throttleLevel: 0.6,
+    smoothing: 0.08, // [s] stała czasowa zmian
+  },
+  drift: { q: 6, baseHz: 1800, levelHz: 500, volume: 0.06, smoothing: 0.05 },
+  wallMinSpeed: 3, // [m/s] słabsze stuknięcia bez dźwięku
+};
+
 // ---------------------------------------------------------------------
 // Sieć (PeerJS, gwiazda: host liczy grę, klienci wysyłają sterowanie).
 // ---------------------------------------------------------------------
@@ -430,6 +455,25 @@ export const THEMES = {
     kerbA: 0xff6b00, kerbB: 0x222222, barrierA: 0xff3d00, barrierB: 0x1a1a1a,
     foliage: 0x5a3e36, trunk: 0x2a1e1a, rock: 0x1e1e1e, accent: 0xffc400,
     sunColor: 0xffb080, sunIntensity: 1.8, hemiSky: 0xff8a50, hemiGround: 0x2a1010, hemiIntensity: 1.0,
+  },
+};
+
+// ---------------------------------------------------------------------
+// Presety lobby: zestawy ustawień rozgrywki (tor — rozmiar, seed, motyw —
+// zostaje bez zmian). Klucze muszą istnieć w SETTINGS_SCHEMA (test).
+// ---------------------------------------------------------------------
+export const PRESETS = {
+  standard: {
+    label: 'Standard',
+    values: { itemFrequency: 'normal', enabledItems: ['rocket', 'banana', 'boost', 'shield'], kartCollisions: true, botDifficulty: 'medium', speedClass: '150cc', minRacers: 4 },
+  },
+  chaos: {
+    label: 'Chaos',
+    values: { itemFrequency: 'often', enabledItems: ['rocket', 'banana', 'boost', 'shield'], kartCollisions: true, botDifficulty: 'hard', speedClass: '200cc', minRacers: 8 },
+  },
+  clean: {
+    label: 'Czysty wyścig',
+    values: { itemFrequency: 'none', enabledItems: [], kartCollisions: false, botDifficulty: 'hard', speedClass: '150cc', minRacers: 4 },
   },
 };
 

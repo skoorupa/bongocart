@@ -3,8 +3,8 @@
 // po stronie hosta, stan gry (snapshot) i jego wczytywanie u klienta.
 //
 // Wiadomości (pole t):
-//   klient -> host: hello {profile}, profile {profile}, input {from, list}, ping
-//   host -> klient: welcome {id, lobby}, reject {reason}, lobby {lobby},
+//   klient -> host: hello {profile, version}, profile {profile}, input {from, list}, ping
+//   host -> klient: welcome {id}, reject {reason: full|version}, lobby {lobby},
 //                   start {...}, snap {...}, abort, ping
 // =====================================================================
 import { NET } from '../config.js';

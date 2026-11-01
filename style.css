@@ -248,3 +248,10 @@ button.small { flex: 0 0 auto; padding: 4px 8px; font-size: 12px; margin-left: a
 #players { list-style: none; padding: 0; margin: 10px 0; }
 #players li { padding: 3px 0; }
 #roomSolo[hidden], #roomInfo[hidden] { display: none; }
+
+/* --- Etap 8: presety --- */
+.presets { display: flex; gap: 6px; margin-bottom: 12px; }
+.presets button { padding: 6px 4px; font-size: 12px; background: #3a3a55; color: var(--text); }
+.presets button[aria-pressed="true"] { background: var(--accent); color: #1a1a1a; }
+.presets button:disabled { opacity: 0.5; cursor: not-allowed; }
+.card button.wide + button.wide { margin-top: 8px; }

@@ -41,3 +41,13 @@ test('sanitizeSettings podmienia złe pola na domyślne', () => {
 test('losowy seed spełnia wzorzec pola seeda', () => {
   for (let i = 0; i < 100; i++) assert.ok(applySettingChange(defaultSettings(), 'trackSeed', randomSeed()));
 });
+
+test('presety: każda wartość przechodzi walidację schematu', async () => {
+  const { PRESETS } = await import('../src/config.js');
+  const { applySettingChange, defaultSettings } = await import('../src/settings.js');
+  for (const [name, p] of Object.entries(PRESETS)) {
+    for (const [key, value] of Object.entries(p.values)) {
+      assert.ok(applySettingChange(defaultSettings(), key, value), `${name}.${key}`);
+    }
+  }
+});

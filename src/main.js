@@ -1,5 +1,5 @@
 // =====================================================================
-// main.js — ETAP 6: lobby (solo albo pokój PeerJS) -> odliczanie ->
+// main.js — lobby (solo albo pokój PeerJS) -> odliczanie ->
 // wyścig z botami i przedmiotami -> wyniki -> lobby.
 //
 // Tryby:
@@ -9,7 +9,7 @@
 // Symulacja: game.js / net/*; tutaj wejście, rysowanie i UI.
 // =====================================================================
 import * as THREE from 'three';
-import { SETTINGS_SCHEMA, RENDER, PHYSICS, KART_COLORS, RACE, NET, MAX_RACERS } from './config.js';
+import { SETTINGS_SCHEMA, RENDER, PHYSICS, KART_COLORS, RACE, NET, MAX_RACERS, GAME_VERSION, PRESETS, AUDIO, CAMERA } from './config.js';
 import { defaultSettings, applySettingChange, randomSeed, sanitizeSettings } from './settings.js';
 import { generateTrack, trackParamsFromSettings } from './track/generator.js';
 import { buildTrackVisual, applyThemeToScene, disposeObject } from './track/trackMesh.js';
@@ -22,6 +22,7 @@ import { createItemsView } from './itemsMesh.js';
 import { createChaseCamera } from './camera.js';
 import { createGame } from './game.js';
 import { createHud } from './ui/hud.js';
+import { createAudio } from './audio.js';
 import { createRng, deriveSeed } from './rng.js';
 import { hostRoom, joinRoom, normalizeRoomCode } from './net/peer.js';
 import { createHostSession, createClientSession } from './net/session.js';
@@ -40,6 +41,7 @@ const chase = createChaseCamera();
 const minimap = createMinimap($('minimap'));
 const input = createInput();
 const hud = createHud();
+const audio = createAudio();
 
 // --- Profil gracza (pamiętany w przeglądarce; może się nie udać — wtedy domyślny).
 function loadProfile() {
@@ -116,6 +118,30 @@ const lobbyUi = createLobbyPanel({
 });
 lobbyUi.setProfile(profile);
 
+// --- Presety: zestawy ustawień rozgrywki (solo/host). Każda wartość
+// przechodzi tę samą walidację co zmiana z formularza.
+const presetButtons = Object.entries(PRESETS).map(([id, preset]) => {
+  const b = document.createElement('button');
+  b.textContent = preset.label;
+  b.addEventListener('click', () => {
+    if (mode === 'client' || inRace) return;
+    for (const [key, value] of Object.entries(preset.values)) settings = applySettingChange(settings, key, value) ?? settings;
+    form.setValues(settings);
+    roomChanged();
+  });
+  $('presets').append(b);
+  return { b, preset };
+});
+const presetActive = (preset) => Object.entries(preset.values).every(([k, v]) => JSON.stringify(settings[k]) === JSON.stringify(v));
+
+// --- Dźwięk: M albo przycisk.
+function renderMute() {
+  const label = audio.muted ? '🔇 Dźwięk wyłączony (M)' : '🔊 Dźwięk włączony (M)';
+  $('muteToggle').textContent = $('muteToggleMenu').textContent = label;
+}
+for (const id of ['muteToggle', 'muteToggleMenu']) $(id).addEventListener('click', () => { audio.toggleMuted(); renderMute(); });
+renderMute();
+
 // --- Tor i podgląd stawki
 function rebuildTrack() {
   const params = trackParamsFromSettings(settings, effectiveSeed());
@@ -187,6 +213,10 @@ function updateLobbyUi() {
   const canEdit = mode !== 'client' && !inRace;
   form.setReadOnly(!canEdit);
   for (const id of ['newTrack', 'pinSeed', 'startRace']) $(id).disabled = !canEdit;
+  for (const { b, preset } of presetButtons) {
+    b.disabled = !canEdit;
+    b.setAttribute('aria-pressed', String(presetActive(preset)));
+  }
   $('startHint').textContent = mode === 'client'
     ? (hostRacing ? 'Trwa wyścig — dołączysz do następnego.' : 'Czekamy, aż host wystartuje wyścig.')
     : mode === 'host' ? `Graczy: ${players.length}/${MAX_RACERS}. Boty dopełnią do minimum.` : '';
@@ -304,7 +334,13 @@ const clientHandlers = {
     handleEvents(sim.onSnapshot(m));
   },
   abort() { if (inRace) enterLobby(); },
-  reject(m) { leaveRoom(m.reason === 'full' ? 'Pokój jest pełny.' : 'Host odrzucił połączenie.', false); },
+  reject(m) {
+    const text = {
+      full: 'Pokój jest pełny.',
+      version: `Masz inną wersję gry niż host (${GAME_VERSION} vs ${m.version}). Odśwież stronę: Ctrl+Shift+R.`,
+    }[m.reason] ?? 'Host odrzucił połączenie.';
+    leaveRoom(text, false);
+  },
 };
 
 function leaveRoom(status, closeTransport = true) {
@@ -334,6 +370,8 @@ function enterLobby() {
 
 function beginRace(g) {
   setGame(g);
+  lastCount = null;
+  lastSlotReady = false;
   inRace = true;
   hostTick = 0;
   pendingEvents = [];
@@ -402,8 +440,23 @@ $('pinSeed').addEventListener('click', () => {
 });
 $('showDebug').addEventListener('change', (e) => { visual.debug.visible = e.target.checked; });
 
+const USE_SOUND = { boost: 'boost', rocket: 'rocket', banana: 'banana', shield: 'shield' };
 function handleEvents(events) {
   hud.handleEvents(events, localId, game.race);
+  for (const e of events) {
+    if (e.type === 'go') audio.play('go');
+    if (e.id !== localId) continue;
+    if (e.type === 'pickup') audio.play('pickup');
+    if (e.type === 'use') audio.play(USE_SOUND[e.item]);
+    if (e.type === 'hit') {
+      audio.play('hit');
+      chase.shake(CAMERA.shake.hit);
+    }
+    if (e.type === 'blocked') audio.play('blocked');
+    if (e.type === 'lap' && e.lap < game.race.laps) audio.play('lap');
+    if (e.type === 'finalLap') audio.play('finalLap');
+    if (e.type === 'finish') audio.play('finish');
+  }
   if (events.some((e) => e.type === 'end')) resultsIn = RACE.resultsDelaySeconds;
 }
 
@@ -463,11 +516,18 @@ if (new URLSearchParams(location.search).has('debug')) {
 const clock = new THREE.Clock();
 let acc = 0;
 let pending = { reset: false, item: false }; // akcje jednorazowe do pierwszego kroku fizyki
+let lastCount = null; // odliczanie: ostatnia cyfra (dźwięk)
+let lastSlotReady = false; // przedmiot gotowy (dźwięk)
 
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), PHYSICS.fixedDt * PHYSICS.maxStepsPerFrame);
   const ctl = input.read();
   if (ctl.menuPressed && inRace && resultsIn === null && $('results').hidden) setMenu(!menuOpen);
+  if (ctl.mutePressed) {
+    audio.toggleMuted();
+    renderMute();
+  }
+  let wallHit = 0; // najmocniejsze uderzenie własnego karta w tej klatce
 
   // Solo z otwartym menu = pauza; w sieci gra toczy się dalej (sterowanie wyłączone).
   const running = inRace && !(menuOpen && !isOnline());
@@ -482,12 +542,14 @@ renderer.setAnimationLoop(() => {
       if (mode === 'client') {
         savePrev(localId);
         sim.stepLocal(local);
+        wallHit = Math.max(wallHit, game.karts.get(localId).wallHit);
       } else {
         savePrev();
         const inputs = new Map([[localId, local]]);
         if (mode === 'host') host.remoteInputs(game, inputs);
         const events = game.step(PHYSICS.fixedDt, inputs);
         handleEvents(events);
+        wallHit = Math.max(wallHit, game.karts.get(localId)?.wallHit ?? 0);
         if (mode === 'host') {
           pendingEvents.push(...events);
           if (++hostTick % NET.snapshotEverySteps === 0) {
@@ -512,6 +574,21 @@ renderer.setAnimationLoop(() => {
       }
     }
     hud.update(game.race, localId, dt, game.items);
+
+    // Dźwięki stanu: odliczanie, gotowy przedmiot, uderzenie w bandę.
+    if (game.race.time < 0) {
+      const n = Math.ceil(-game.race.time);
+      if (n !== lastCount) audio.play('tick');
+      lastCount = n;
+    }
+    const slot = game.items.slots.get(localId);
+    const ready = !!slot?.item && slot.roll <= 0;
+    if (ready && !lastSlotReady) audio.play('ready');
+    lastSlotReady = ready;
+    if (wallHit > AUDIO.wallMinSpeed) {
+      audio.play('wall', wallHit / game.stats.maxSpeed);
+      chase.shake(wallHit * CAMERA.shake.wallPerSpeed);
+    }
   }
 
   // Klient: inne karty są już zinterpolowane (prev = bieżący), więc alpha
@@ -526,6 +603,7 @@ renderer.setAnimationLoop(() => {
   const followId = game.karts.has(localId) ? localId : game.roster[0].id;
   const me = viewOf(followId, alpha, ctl.lookBack && running && !menuOpen);
   chase.update(me, dt);
+  audio.update(running && !menuOpen && followId === localId ? me : null, ctl.throttle);
   minimap.draw(game.roster.map((r) => {
     const v = r.id === followId ? me : viewOf(r.id, alpha);
     return { x: v.x, z: v.z, color: r.color, isLocal: r.id === localId };

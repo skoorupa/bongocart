@@ -64,6 +64,7 @@ export function createInput(target = window) {
         itemPressed: pressedOnce.has('item'),
         resetPressed: pressedOnce.has('reset'),
         menuPressed: pressedOnce.has('menu'),
+        mutePressed: pressedOnce.has('mute'),
       };
       pressedOnce.clear();
       return state;

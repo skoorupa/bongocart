@@ -6,6 +6,8 @@ import * as THREE from 'three';
 import { ITEMS } from './config.js';
 
 const MAX_ROCKETS = 32;
+// Odłamki rozbitej skrzynki (czysto wizualne, Math.random jest OK).
+const SHARDS = { max: 96, perBox: 12, speed: 7, up: 6, gravity: 18, life: 0.8, size: 0.28 };
 const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 
 export function createItemsView(track) {
@@ -37,7 +39,14 @@ export function createItemsView(track) {
   flameGeo.translate(0, 0, -1.0);
   const flames = new THREE.InstancedMesh(flameGeo, new THREE.MeshBasicMaterial({ color: 0xffa62b }), MAX_ROCKETS);
 
-  for (const m of [boxShell, boxCore, bananas, rockets, flames]) {
+  const shardMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(SHARDS.size, SHARDS.size, SHARDS.size),
+    new THREE.MeshBasicMaterial({ color: track.theme.accent }),
+    SHARDS.max);
+  const shards = []; // {x, y, z, vx, vy, vz, age}
+  let lastRespawn = track.itemBoxes.map(() => 0);
+
+  for (const m of [boxShell, boxCore, bananas, rockets, flames, shardMesh]) {
     m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     m.frustumCulled = false; // instancje rozrzucone po całym torze
     group.add(m);
@@ -72,6 +81,29 @@ export function createItemsView(track) {
       });
       boxShell.count = boxCore.count = track.itemBoxes.length;
 
+      // Skrzynka właśnie pękła -> odłamki.
+      if (items) {
+        items.boxes.forEach((b, i) => {
+          if (b.respawn > 0 && lastRespawn[i] === 0) {
+            for (let k = 0; k < SHARDS.perBox; k++) {
+              const a = Math.random() * Math.PI * 2, v = SHARDS.speed * (0.5 + Math.random() * 0.5);
+              shards.push({ x: b.x, y: B.height, z: b.z, vx: Math.cos(a) * v, vy: SHARDS.up * Math.random(), vz: Math.sin(a) * v, age: 0 });
+            }
+            while (shards.length > SHARDS.max) shards.shift();
+          }
+          lastRespawn[i] = b.respawn;
+        });
+      }
+      for (let i = shards.length - 1; i >= 0; i--) {
+        const p = shards[i];
+        p.age += dt;
+        if (p.age > SHARDS.life) { shards.splice(i, 1); continue; }
+        p.vy -= SHARDS.gravity * dt;
+        p.x += p.vx * dt; p.y = Math.max(0.1, p.y + p.vy * dt); p.z += p.vz * dt;
+      }
+      shards.forEach((p, i) => put(shardMesh, i, p.x, p.y, p.z, p.age * 9, p.age * 7, 0, 1 - p.age / SHARDS.life));
+      shardMesh.count = shards.length;
+
       const bs = items?.bananas ?? [];
       bs.forEach((b, i) => put(bananas, i, b.x, 0.3, b.z, 0, b.id, 0));
       bananas.count = bs.length;
@@ -83,7 +115,7 @@ export function createItemsView(track) {
       });
       rockets.count = flames.count = rs.length;
 
-      for (const m of [boxShell, boxCore, bananas, rockets, flames]) m.instanceMatrix.needsUpdate = true;
+      for (const m of [boxShell, boxCore, bananas, rockets, flames, shardMesh]) m.instanceMatrix.needsUpdate = true;
     },
     dispose() {
       group.traverse((o) => {

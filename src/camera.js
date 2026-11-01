@@ -1,7 +1,8 @@
 // =====================================================================
 // camera.js — kamera trzecioosobowa (chase cam).
 // Pozycja podąża płynnie, obrót z lekkim opóźnieniem, FOV rośnie
-// z prędkością i przy turbo, pochylenie przy dryfie, C = widok do tyłu.
+// z prędkością i przy turbo, pochylenie przy dryfie, C = widok do tyłu,
+// wstrząs przy uderzeniach.
 // =====================================================================
 import * as THREE from 'three';
 import { CAMERA, RENDER } from './config.js';
@@ -13,6 +14,7 @@ const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 export function createChaseCamera() {
   const camera = new THREE.PerspectiveCamera(CAMERA.fovBase, 1, RENDER.near, RENDER.far);
   let yaw = 0, roll = 0, lastLookBack = false;
+  let shake = 0, shakeT = 0;
   const pos = new THREE.Vector3();
   const look = new THREE.Vector3();
   const target = new THREE.Vector3();
@@ -32,6 +34,15 @@ export function createChaseCamera() {
 
     look.set(view.x + fx * CAMERA.lookAhead, CAMERA.lookHeight, view.z + fz * CAMERA.lookAhead);
     camera.position.copy(pos);
+    // Wstrząs: drgania zanikające wykładniczo (nie ruszają pozycji bazowej).
+    shake *= Math.exp(-CAMERA.shake.decay * dt);
+    shakeT += dt;
+    if (shake > 1e-3) {
+      const w = shakeT * CAMERA.shake.frequency;
+      camera.position.x += Math.sin(w * 1.3) * shake;
+      camera.position.y += Math.sin(w * 1.7 + 1) * shake * 0.5;
+      camera.position.z += Math.sin(w * 1.1 + 2) * shake;
+    }
     camera.up.set(0, 1, 0);
     camera.lookAt(look);
 
@@ -51,6 +62,7 @@ export function createChaseCamera() {
     camera,
     update: (view, dt) => place(view, false, dt),
     snap: (view) => place(view, true, 0),
+    shake(amount) { shake = Math.min(CAMERA.shake.maxAmplitude, shake + amount); },
     setAspect(aspect) {
       camera.aspect = aspect;
       camera.updateProjectionMatrix();
