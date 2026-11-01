@@ -46,4 +46,4 @@ Otwarte / do potwierdzenia z użytkownikiem:
 - ewentualna trwała tablica rekordów (najlepsze czasy na torze) — jest tabela na żywo w wyścigu i tabela turnieju, ale nic nie jest zapisywane między sesjami;
 - drobiazgi odłożone przy turnieju: etykieta seeda w lobby turnieju pokazuje `X-1`, a „Przypnij seed” zapisuje `X`; klient chwilowo nadpisuje `randomTrackSeed` seedem mapy;
 - czy „Średni” tor ma mieć mocniejsze wcięcia (obecnie najwyraźniejsze kształty B/koniczynka na „Trudnym”);
-- repo jest tylko lokalne (nie wypchnięte na GitHuba / nie wdrożone).
+- repo na GitHubie: https://github.com/skoorupa/bongocart (publiczne); gra jeszcze nie wdrożona (np. GitHub Pages).
