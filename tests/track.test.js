@@ -79,3 +79,32 @@ test('dekoracje nie stoją na torze', () => {
   assert.ok(t.decorations.length >= TRACK.decorations.min);
   for (const d of t.decorations) assert.ok(nearestOnTrack(t, d.x, d.z).dist >= OUTER_HALF);
 });
+
+// Pole toru / pole otoczki wypukłej: okrąg = 1, kształt z wcięciami (B, koniczynka) < 1.
+function convexity(pts) {
+  const p = [...pts].sort((a, b) => a.x - b.x || a.z - b.z);
+  const cross = (o, a, b) => (a.x - o.x) * (b.z - o.z) - (a.z - o.z) * (b.x - o.x);
+  const half = (list) => {
+    const h = [];
+    for (const q of list) {
+      while (h.length >= 2 && cross(h.at(-2), h.at(-1), q) <= 0) h.pop();
+      h.push(q);
+    }
+    return h.slice(0, -1);
+  };
+  const hull = [...half(p), ...half([...p].reverse())];
+  const area = (poly) => Math.abs(poly.reduce((s, a, i) => { const b = poly[(i + 1) % poly.length]; return s + a.x * b.z - b.x * a.z; }, 0) / 2);
+  return area(pts) / area(hull);
+}
+
+test('tory nie są kołami: średni i trudny mają wyraźne wcięcia', () => {
+  const avg = (difficulty) => {
+    let sum = 0;
+    for (let i = 0; i < 20; i++) sum += convexity(generateTrack({ seed: `shape${i}`, size: 'medium', difficulty, theme: 'random', itemFrequency: 'none' }).points);
+    return sum / 20;
+  };
+  const medium = avg('medium'), hard = avg('hard');
+  assert.ok(medium < 0.94, `średni ${medium}`);
+  assert.ok(hard < 0.86, `trudny ${hard}`);
+  assert.ok(hard < medium);
+});

@@ -4,7 +4,8 @@
 // te same parametry = identyczny tor u każdego klienta.
 //
 // Algorytm:
-//   1. losowe punkty wokół okręgu ze zmiennym promieniem,
+//   1. losowe punkty wokół okręgu: promień = płaty (niskie harmoniczne,
+//      wcięcia jak w literze B) + szum,
 //   2. zamknięta splajna Catmull-Rom (centripetalna),
 //   3. skalowanie do docelowej długości + równomierny resampling,
 //   4. walidacja (ostre zakręty, samoprzecięcia / za blisko siebie);
@@ -46,10 +47,18 @@ function controlPoints(rng, diff, calm, length) {
   const aspect = 1 + (rng.range(...diff.aspect) - 1) * calm;
   const rot = rng.range(0, TAU);
   const cr = Math.cos(rot), sr = Math.sin(rot);
+  // Płaty: 1–2 harmoniczne z losową fazą.
+  const lobeCount = rng.int(diff.lobes.count[0], diff.lobes.count[1]);
+  const lobes = Array.from({ length: lobeCount }, () => ({
+    k: rng.pick(TRACK.lobeHarmonics),
+    amp: rng.range(...diff.lobes.amplitude) * calm,
+    phase: rng.range(0, TAU),
+  }));
   const k = TRACK.radiusSmoothing;
   return angles.map((a, i) => {
     const nz = noise[i] * (1 - 2 * k) + (noise[mod(i - 1, n)] + noise[(i + 1) % n]) * k;
-    const r = 1 + nz * diff.radiusVariance * calm;
+    const lobe = lobes.reduce((sum, l) => sum + l.amp * Math.cos(l.k * a + l.phase), 0);
+    const r = Math.max(TRACK.minRadiusFactor, 1 + lobe + nz * diff.radiusVariance * calm);
     const x = Math.cos(a) * r * aspect, z = Math.sin(a) * r;
     return { x: x * cr - z * sr, z: x * sr + z * cr };
   });
@@ -356,7 +365,7 @@ export function generateTrack({ seed, size, difficulty, theme, itemFrequency }) 
     const dense = sampleClosedSpline(controlPoints(rng, diff, calm, length0), TRACK.splineSamplesPerSegment);
     let res = resampleClosed(dense, length0, TRACK.sampleSpacing);
     computeFrames(res.points, res.step);
-    if (relaxSharpTurns(res.points, res.step, diff.minTurnRadius)) {
+    if (relaxSharpTurns(res.points, res.step, diff.minTurnRadius * TRACK.relax.targetMargin)) {
       // Wygładzanie skraca tor i psuje równe odstępy — przywracamy jedno i drugie.
       res = resampleClosed(res.points, length0, TRACK.sampleSpacing);
       computeFrames(res.points, res.step);

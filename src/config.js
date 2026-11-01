@@ -194,16 +194,33 @@ export const TRACK = {
   // zmienność promienia (ostrość), rozrzut kątowy, min. promień zakrętu,
   // wydłużenie kształtu [min, max] (1 = koło, więcej = długie proste).
   difficulties: {
-    easy: { label: 'Łatwy', metersPerPoint: [110, 140], radiusVariance: 0.3, angleJitter: 0.3, minTurnRadius: 30, aspect: [1.4, 2.0] },
-    medium: { label: 'Średni', metersPerPoint: [75, 95], radiusVariance: 0.45, angleJitter: 0.4, minTurnRadius: 22, aspect: [1.3, 2.1] },
-    hard: { label: 'Trudny', metersPerPoint: [55, 70], radiusVariance: 0.55, angleJitter: 0.45, minTurnRadius: 16, aspect: [1.2, 2.2] },
+    easy: {
+      label: 'Łatwy', metersPerPoint: [95, 120], radiusVariance: 0.3, angleJitter: 0.3, minTurnRadius: 30, aspect: [1.3, 1.8],
+      lobes: { count: [1, 1], amplitude: [0.38, 0.5] },
+    },
+    medium: {
+      label: 'Średni', metersPerPoint: [65, 80], radiusVariance: 0.35, angleJitter: 0.4, minTurnRadius: 22, aspect: [1.2, 1.8],
+      lobes: { count: [2, 2], amplitude: [0.38, 0.52] },
+    },
+    hard: {
+      label: 'Trudny', metersPerPoint: [48, 60], radiusVariance: 0.4, angleJitter: 0.45, minTurnRadius: 16, aspect: [1.1, 1.8],
+      lobes: { count: [2, 2], amplitude: [0.42, 0.58] },
+    },
   },
+  // "Płaty" toru: niskie harmoniczne promienia r(θ) = 1 + Σ a·cos(kθ + φ).
+  // k = 2 daje kształt fasolki / litery B (dwa brzuśce i wcięcie), k = 3
+  // koniczynkę, k = 4 krzyż. Wcięcia = zakręty w drugą stronę, tor
+  // przestaje przypominać koło.
+  lobeHarmonics: [2, 2, 3, 3, 4], // losowane (powtórzenia = większa szansa)
+  minRadiusFactor: 0.35, // dolne ograniczenie promienia (× średni promień)
   minControlPoints: 6,
   // Kolejne próby generacji łagodzą kształt: calm = 1 − (próba/max)^wykładnik.
   calmExponent: 2,
   // Lokalne wygładzanie za ostrych zakrętów przed walidacją.
   // stencil = odległość sąsiadów w próbkach (szerszy = szybsza zbieżność).
-  relax: { maxIterations: 60, windowSamples: 8, stencil: 4, strength: 0.5 },
+  // targetMargin: wygładzamy do promienia minR × margines, bo późniejsze
+  // przeskalowanie do docelowej długości lekko zacieśnia zakręty.
+  relax: { maxIterations: 80, windowSamples: 8, stencil: 4, strength: 0.5, targetMargin: 1.4 },
   // Wygładzenie szumu promienia między sąsiednimi punktami kontrolnymi
   // (0 = niezależny szum, 0.5 = mocno skorelowany) — mniej zygzaków.
   radiusSmoothing: 0.2,
