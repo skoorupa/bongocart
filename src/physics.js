@@ -8,7 +8,7 @@
 // Układ: heading = 0 patrzy w +Z, forward = (sin h, cos h),
 // right = (−cos h, sin h). Skręt w prawo zmniejsza heading.
 // =====================================================================
-import { KART, SPEED_CLASSES, TRACK } from './config.js';
+import { KART, SPEED_CLASSES, TRACK, OBSTACLES } from './config.js';
 import { nearestOnTrack, gridSlot } from './track/generator.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -43,7 +43,8 @@ export function createKartState(track, slot) {
     surface: 'road', // road | kerb | offroad
     lateral: q.lateral, // przesunięcie od środka toru (+ = w prawo)
     trackS: q.s, // metr okrążenia
-    wallHit: 0, // siła ostatniego uderzenia w bandę (dźwięk/efekty)
+    wallHit: 0, // siła ostatniego uderzenia w bandę/słupek (dźwięk/efekty)
+    bumpTime: 0, // > 0 = podskok po progu zwalniającym (wizualny) [s]
   };
 }
 
@@ -132,7 +133,59 @@ export function stepKart(kart, input, track, stats, dt) {
   kart.z += kart.vz * dt;
   kart.speed = fwd;
 
+  const prevS = kart.trackS;
   collideWithTrack(kart, track);
+  kart.bumpTime = Math.max(0, kart.bumpTime - dt);
+  collideObstacles(kart, track, prevS);
+}
+
+// Przeszkody z toru: słupki (twarde, lekko spowalniają) i progi (ucinają
+// prędkość raz na przejazd). prevS = metr toru przed tym krokiem.
+function collideObstacles(kart, track, prevS) {
+  const P = OBSTACLES.post, B = OBSTACLES.bump;
+  for (const o of track.posts ?? []) {
+    const dx = kart.x - o.x, dz = kart.z - o.z;
+    const minD = KART.radius + o.radius;
+    const d2 = dx * dx + dz * dz;
+    if (d2 >= minD * minD) continue;
+    const d = Math.sqrt(d2) || 1e-6;
+    const nx = d2 ? dx / d : 1, nz = d2 ? dz / d : 0; // od słupka do karta
+    kart.x = o.x + nx * minD;
+    kart.z = o.z + nz * minD;
+    const vn = -(kart.vx * nx + kart.vz * nz); // prędkość w stronę słupka
+    if (vn <= 0) continue;
+    if (vn <= P.hitMinSpeed) {
+      // Otarcie: tylko zdejmujemy składową w stronę słupka.
+      kart.vx += nx * vn;
+      kart.vz += nz * vn;
+    } else {
+      // Uderzenie: kart ześlizguje się po słupku — prędkość idzie wzdłuż
+      // stycznej (tej bliższej kursowi), z utratą P.speedKeep. Bez odbicia
+      // do tyłu, więc kart nigdy nie staje w miejscu.
+      const fx = Math.sin(kart.heading), fz = Math.cos(kart.heading);
+      const sgn = -nz * fx + nx * fz >= 0 ? 1 : -1;
+      const v = Math.hypot(kart.vx, kart.vz) * P.speedKeep;
+      kart.vx = -nz * sgn * v;
+      kart.vz = nx * sgn * v;
+      kart.wallHit = Math.max(kart.wallHit, vn);
+    }
+    kart.speed = kart.vx * Math.sin(kart.heading) + kart.vz * Math.cos(kart.heading);
+  }
+
+  // Próg: metr toru karta przeszedł przez metr progu (w dowolną stronę).
+  const L = track.length;
+  const rel = (x, s) => ((((x - s + L / 2) % L) + L) % L) - L / 2; // ze znakiem, −L/2..L/2
+  for (const o of track.obstacles ?? []) {
+    if (o.type !== 'bump') continue;
+    const a = rel(prevS, o.s), b = rel(kart.trackS, o.s);
+    if (Math.sign(a) === Math.sign(b) || Math.abs(a) > L / 4) continue;
+    if (kart.lateral < o.latFrom - KART.radius || kart.lateral > o.latTo + KART.radius) continue;
+    if (Math.abs(kart.speed) <= B.minSpeed) continue;
+    kart.vx *= B.speedKeep;
+    kart.vz *= B.speedKeep;
+    kart.speed *= B.speedKeep;
+    kart.bumpTime = B.hopSeconds;
+  }
 }
 
 function updateDrift(kart, input, fwd, dt) {
@@ -242,6 +295,6 @@ export function collideKarts(karts) {
 export function resetKartToTrack(kart, track) {
   const q = nearestOnTrack(track, kart.x, kart.z);
   const p = track.points[q.index];
-  Object.assign(kart, { x: p.x, z: p.z, heading: p.heading, vx: 0, vz: 0, speed: 0, steer: 0, boostTime: 0, spinTime: 0 });
+  Object.assign(kart, { x: p.x, z: p.z, heading: p.heading, vx: 0, vz: 0, speed: 0, steer: 0, boostTime: 0, spinTime: 0, bumpTime: 0 });
   endDrift(kart.drift);
 }

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateTrack, nearestOnTrack } from '../src/track/generator.js';
 import { createKartState, stepKart, kartStats } from '../src/physics.js';
-import { KART, PHYSICS, TRACK } from '../src/config.js';
+import { KART, PHYSICS, TRACK, OBSTACLES } from '../src/config.js';
 
 const track = generateTrack({ seed: 'phys', size: 'medium', difficulty: 'easy', theme: 'random', itemFrequency: 'none' });
 const DT = PHYSICS.fixedDt;
@@ -121,4 +121,117 @@ test('kart wbity prostopadle w bandę nie zakleszcza się', () => {
   Object.assign(k, { x: p.x + p.nx * (wall - 0.5), z: p.z + p.nz * (wall - 0.5), heading: Math.atan2(p.nx, p.nz) + 0.15 });
   run(k, gas, 3);
   assert.ok(k.speed > 10, `speed ${k.speed}`);
+});
+
+// --- Przeszkody: tor bez przeszkód + ręcznie dołożone słupki/progi na prostej startowej.
+const n = track.points.length;
+const withObstacles = (obstacles) => ({ ...track, obstacles, posts: obstacles.filter((o) => o.type === 'post') });
+const at = (i, lat = 0) => { const p = track.points[((i % n) + n) % n]; return { x: p.x + p.nx * lat, z: p.z + p.nz * lat, p }; };
+const postAt = (i, lat = 0) => { const q = at(i, lat); return { type: 'post', x: q.x, z: q.z, s: q.p.s, radius: OBSTACLES.post.radius }; };
+const bumpAt = (i, latFrom = -track.halfWidth, latTo = track.halfWidth) => {
+  const p = track.points[((i % n) + n) % n];
+  return { type: 'bump', index: ((i % n) + n) % n, s: p.s, latFrom, latTo, heading: p.heading };
+};
+// Kart w punkcie i (przesunięty o lat), patrzy wzdłuż toru, jedzie z prędkością v.
+const placed = (t, i, lat, v) => {
+  const k = createKartState(t, 0);
+  const q = at(i, lat);
+  Object.assign(k, { x: q.x, z: q.z, heading: q.p.heading, vx: Math.sin(q.p.heading) * v, vz: Math.cos(q.p.heading) * v, speed: v });
+  stepKart(k, idle, t, kartStats('150cc'), 0); // odśwież trackS/lateral bez ruchu
+  return k;
+};
+// Jazda z zapisem prędkości w każdym kroku.
+const drive = (t, k, input, seconds) => {
+  const speeds = [k.speed];
+  for (let i = 0; i < Math.round(seconds / DT); i++) {
+    stepKart(k, input, t, kartStats('150cc'), DT);
+    speeds.push(k.speed);
+  }
+  return speeds;
+};
+const drops = (speeds) => speeds.slice(1).map((v, i) => Math.abs(speeds[i]) - Math.abs(v));
+const metersPerIdx = track.step;
+
+test('słupek odbija i spowalnia, ale nie zatrzymuje ani nie obraca', () => {
+  const post = postAt(Math.round(8 / metersPerIdx) + 2, 0.6);
+  const t = withObstacles([post]);
+  const k = placed(t, 2, 0, 25);
+  const minD = KART.radius + post.radius;
+  let minSpeed = Infinity, touched = false;
+  for (let i = 0; i < Math.round(2 / DT); i++) {
+    stepKart(k, gas, t, kartStats('150cc'), DT);
+    const d = Math.hypot(k.x - post.x, k.z - post.z);
+    assert.ok(d >= minD - 1e-6, `przenika słupek: ${d}`);
+    if (d < minD + 0.05) touched = true;
+    minSpeed = Math.min(minSpeed, k.speed);
+    assert.equal(k.spinTime, 0);
+  }
+  assert.ok(touched, 'nie dotknął słupka');
+  assert.ok(minSpeed < 25 * 0.9 && minSpeed > 0, `min ${minSpeed}`);
+  assert.ok(k.trackS > post.s + 2, `utknął: ${k.trackS} vs ${post.s}`);
+});
+
+test('dryf nie jest przerywany przez słupek', () => {
+  const t = withObstacles([postAt(2 + Math.round(2 / metersPerIdx), 0.8)]);
+  const k = placed(t, 2, 0, 20);
+  Object.assign(k.drift, { active: true, dir: 1 });
+  const input = { ...gas, drift: true, steer: 1 };
+  let hit = false;
+  for (let i = 0; i < Math.round(0.4 / DT) && !hit; i++) {
+    stepKart(k, input, t, kartStats('150cc'), DT);
+    hit = k.wallHit > 0;
+  }
+  assert.ok(hit, 'brak uderzenia');
+  assert.equal(k.drift.active, true);
+});
+
+test('próg zwalnia raz przy dużej prędkości', () => {
+  const t = withObstacles([bumpAt(12)]);
+  const k = placed(t, 2, 0, 25);
+  const speeds = drive(t, k, idle, 1);
+  const d = drops(speeds);
+  const big = d.filter((x) => x > 0.5);
+  assert.equal(big.length, 1, JSON.stringify(big));
+  assert.ok(Math.abs(big[0] - speeds[d.indexOf(big[0])] * (1 - OBSTACLES.bump.speedKeep)) < 0.3, `spadek ${big[0]}`);
+  assert.ok(speeds.some((_, i) => i > 0) && k.trackS > t.obstacles[0].s);
+});
+
+test('próg ustawia podskok (bumpTime)', () => {
+  const t = withObstacles([bumpAt(12)]);
+  const k = placed(t, 2, 0, 25);
+  let maxBump = 0;
+  for (let i = 0; i < Math.round(1 / DT); i++) { stepKart(k, idle, t, kartStats('150cc'), DT); maxBump = Math.max(maxBump, k.bumpTime); }
+  assert.ok(maxBump > 0 && maxBump <= OBSTACLES.bump.hopSeconds);
+});
+
+test('próg przy małej prędkości nie karze', () => {
+  const t = withObstacles([bumpAt(6)]);
+  const k = placed(t, 2, 0, OBSTACLES.bump.minSpeed - 2);
+  const d = drops(drive(t, k, idle, 2));
+  assert.ok(Math.max(...d) < 0.3, `spadek ${Math.max(...d)}`);
+  assert.equal(k.bumpTime, 0);
+});
+
+test('próg poza pasem nie działa', () => {
+  const t = withObstacles([bumpAt(12, 3, 7)]);
+  const k = placed(t, 2, -3, 25);
+  const d = drops(drive(t, k, idle, 1));
+  assert.ok(Math.max(...d) < 0.5, `spadek ${Math.max(...d)}`);
+});
+
+test('cofanie przez próg też karze raz', () => {
+  const t = withObstacles([bumpAt(20)]);
+  const k = placed(t, 20 + Math.round(2 / metersPerIdx), 0, -KART.reverseMaxSpeed);
+  const speeds = drive(t, k, { ...idle, brake: 1 }, 1);
+  const big = drops(speeds).filter((x) => x > 0.5);
+  assert.equal(big.length, 1, JSON.stringify(big));
+  assert.ok(Math.abs(big[0] - KART.reverseMaxSpeed * (1 - OBSTACLES.bump.speedKeep)) < 0.5, `spadek ${big[0]}`);
+});
+
+test('próg nie reaguje na przejazd przez linię mety', () => {
+  const t = withObstacles([bumpAt(Math.round(50 / metersPerIdx))]);
+  const k = placed(t, -Math.round(6 / metersPerIdx), 0, 25);
+  const d = drops(drive(t, k, idle, 0.5));
+  assert.ok(k.trackS < 40, `trackS ${k.trackS}`);
+  assert.ok(Math.max(...d) < 0.5, `spadek ${Math.max(...d)}`);
 });

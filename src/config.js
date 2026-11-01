@@ -295,8 +295,7 @@ export const OBSTACLES = {
     count: [2, 3], // słupków w szykanie (włącznie)
     spacing: 6, // [m] między słupkami szykany (wzdłuż toru)
     maxBlockFraction: 0.35, // słupek najdalej tyle szerokości jezdni od krawędzi
-    restitution: 0.3, // odbicie od słupka (0 = brak)
-    speedKeep: 0.7, // mnożnik prędkości po mocnym uderzeniu
+    speedKeep: 0.7, // mnożnik prędkości po uderzeniu (kart ześlizguje się po słupku)
     hitMinSpeed: 2, // [m/s] poniżej: tylko otarcie, bez kary
   },
   bump: {
