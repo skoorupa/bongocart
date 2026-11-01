@@ -288,13 +288,15 @@ export const OBSTACLES = {
   minCornerRadius: 45, // [m] przeszkody tylko na prostych i łagodnych łukach
   bumpChance: 0.4, // szansa, że przeszkoda to próg (reszta: szykana)
   minFreeFraction: 0.6, // wolny przejazd: min. część szerokości jezdni
-  edgeMargin: 0.6, // [m] słupek od krawędzi jezdni
   post: {
-    radius: 0.35, // [m] promień kolizji słupka
-    height: 0.9, // [m]
-    count: [2, 3], // słupków w szykanie (włącznie)
-    spacing: 6, // [m] między słupkami szykany (wzdłuż toru)
-    maxBlockFraction: 0.35, // słupek najdalej tyle szerokości jezdni od krawędzi
+    radius: 0.6, // [m] promień kolizji słupka
+    height: 1.4, // [m]
+    count: [2, 3], // słupków w grupie (włącznie)
+    spacing: 8, // [m] między słupkami grupy (wzdłuż toru)
+    minGap: 3.5, // [m] wolny przejazd z KAŻDEJ strony słupka (słupki w środkowej strefie)
+    slalomChance: 0.5, // szansa na slalom (zygzak); reszta: rządek na osi toru
+    slalomOffset: 2.4, // [m] odsunięcie słupków slalomu od osi (na przemian lewo/prawo)
+    rowJitter: 0.8, // [m] rozrzut boczny rządka wokół osi
     speedKeep: 0.7, // mnożnik prędkości po uderzeniu (kart ześlizguje się po słupku)
     hitMinSpeed: 2, // [m/s] poniżej: tylko otarcie, bez kary
     contactSlop: 0.05, // [m] luz: kart tuż przy słupku (po wypchnięciu) nadal "w kontakcie"
@@ -309,9 +311,14 @@ export const OBSTACLES = {
     hopHeight: 0.22, // [m] wysokość podskoku
     stripeWidth: 0.7, // [m] szerokość pasa żółty/czarny
   },
-  colors: { post: 0xff6d00, postBand: 0xffffff, bumpA: 0xffd600, bumpB: 0x212121 },
-  postBandHeight: 0.18, // [m] biała opaska na słupku
-  postBandAt: 0.55, // wysokość opaski (× wysokość słupka)
+  colors: { post: 0xff6d00, postBand: 0xffffff, postBase: 0x263238, bumpA: 0xffd600, bumpB: 0x212121 },
+  postBands: [0.55, 0.78], // wysokości środków białych pasów (× wysokość słupka)
+  postBandHeight: 0.14, // [m] wysokość pasa
+  postBandBulge: 0.03, // [m] pas wystaje ponad korpus (bez z-fightingu)
+  postBaseHeight: 0.12, // [m] ciemna podstawa
+  postBaseBulge: 0.08, // [m] podstawa szersza od korpusu
+  postSegments: 14, // boki walca
+  postCapFlatten: 0.35, // czubek: półkula spłaszczona do tej części promienia
   bumpSound: 0.25, // siła dźwięku uderzenia przy progu (0..1, jak wall)
   bumpShake: 0.12, // [m] wstrząs kamery przy progu
 };
@@ -389,6 +396,8 @@ export const AI = {
   brakeScanExtra: 15, // [m] skanowania zakrętów ponad drogę hamowania
   noisePeriods: [7, 13], // [s] dwie sinusoidy "pływania" po torze
   avoid: { ahead: 12, width: 2.6, shift: 3.5, rate: 5 }, // omijanie kart z przodu
+  // Omijanie słupków toru: zasięg patrzenia [m], zapas ponad styk [m].
+  avoidPost: { ahead: 35, margin: 0.6 },
   drift: {
     lookMeters: 10, // zakręt musi zaczynać się tyle przed kartem
     enterRadius: 45, // [m] wchodzi w dryf w zakręcie ciaśniejszym niż to

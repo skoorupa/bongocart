@@ -152,8 +152,8 @@ test('boty kończą wyścig z gęstymi przeszkodami, omijają słupki i się nie
   assert.ok(res.times.every((x) => x !== null), JSON.stringify(res.times));
   assert.ok(Math.min(...res.times) <= Math.min(...base.times) * 1.08, `${Math.min(...res.times)} vs ${Math.min(...base.times)}`);
   assert.ok(res.maxSlow <= AI.stuck.time, `stał ${res.maxSlow} s`);
-  // Deterministyczne: bez omijania w ai.js (lub ze słupkami sprawdzanymi
-  // po kartach) boty trafiają tu 4 razy, z omijaniem 2.
+  // Deterministyczne: przy prostym unikaniu (stałe przesunięcie, najbliższy
+  // słupek) boty trafiały tu 9–11 razy, z objazdem grupy — 1 otarcie.
   assert.ok(res.hits <= 2, `uderzeń w słupki: ${res.hits} (słupków ${obs.posts.length})`);
 });
 
@@ -162,9 +162,9 @@ test('bot omijający wolny kart nie skręca w słupek', () => {
   const p0 = track.points[0], n = track.points.length;
   const at = (m, lat) => { const p = track.points[Math.round(m / track.step) % n]; return { x: p.x + p.nx * lat, z: p.z + p.nz * lat }; };
   const kart = createKartState(track, 0);
-  Object.assign(kart, at(0, 0), { heading: p0.heading, speed: 20, vx: Math.sin(p0.heading) * 20, vz: Math.cos(p0.heading) * 20 });
+  Object.assign(kart, at(0, 0), { heading: p0.heading, speed: 20, vx: Math.sin(p0.heading) * 20, vz: Math.cos(p0.heading) * 20, lateral: 0, trackS: 0 });
   const other = { ...createKartState(track, 1), ...at(6, -0.5), speed: 5 };
-  const post = { ...at(9, 1.5), radius: OBSTACLES.post.radius };
+  const post = { ...at(9, 1.5), index: Math.round(9 / track.step) % n, lateral: 1.5, radius: OBSTACLES.post.radius };
   const driver = createDriver(track, 'medium', 1);
   let out;
   for (let i = 0; i < Math.round(0.5 / DT); i++) {

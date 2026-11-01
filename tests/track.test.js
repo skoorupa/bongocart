@@ -139,8 +139,8 @@ test('przeszkody leżą na jezdni, poza strefami i zostawiają wolny przejazd (w
         for (const b of t.itemBoxes) assert.ok(alongDist(s, t.points[b.index].s, t.length) >= boxGap, `${t.seed}: skrzynka`);
         if (o.type === 'post') {
           const lat = Math.abs(nearestOnTrack(t, o.x, o.z).lateral);
-          assert.ok(lat + o.radius <= t.halfWidth + 1e-6, `${t.seed}: słupek poza jezdnią`);
-          assert.ok(t.halfWidth - lat + o.radius <= maxBlocked + 1e-6, `${t.seed}: słupek zabiera za dużo`);
+          // Słupki w środkowej strefie: przejazd po OBU stronach każdego słupka.
+          assert.ok(lat + o.radius + OBSTACLES.post.minGap <= t.halfWidth + 1e-6, `${t.seed}: za mało miejsca obok słupka (lat ${lat})`);
         } else {
           assert.ok(o.latFrom >= -t.halfWidth - 1e-6 && o.latTo <= t.halfWidth + 1e-6 && o.latFrom < o.latTo);
           assert.ok(o.latTo - o.latFrom <= maxBlocked + 1e-6, `${t.seed}: próg za szeroki`);
@@ -149,4 +149,26 @@ test('przeszkody leżą na jezdni, poza strefami i zostawiają wolny przejazd (w
     }
   }
   assert.ok(withObstacles > total * 0.8, `${withObstacles}/${total}`);
+});
+
+test('słupki: oba układy (slalom i rządek) występują, slalom zmienia stronę', () => {
+  let slalom = 0, row = 0;
+  for (let i = 0; i < 30; i++) {
+    const t = generateTrack({ seed: `bol${i}`, size: 'large', difficulty: 'easy', theme: 'random', itemFrequency: 'none', obstacles: 'many' });
+    // Grupy: kolejne słupki w odstępie spacing wzdłuż toru.
+    const groups = [];
+    for (const o of t.posts) {
+      const g = groups.at(-1);
+      if (g && Math.abs(o.s - g.at(-1).s) <= OBSTACLES.post.spacing + t.step) g.push(o); else groups.push([o]);
+    }
+    for (const g of groups) {
+      if (g.length < 2) continue;
+      const lats = g.map((o) => nearestOnTrack(t, o.x, o.z).lateral);
+      const alternates = lats.every((l, k) => k === 0 || Math.sign(l) !== Math.sign(lats[k - 1]));
+      const spread = Math.max(...lats) - Math.min(...lats);
+      if (alternates && spread > OBSTACLES.post.slalomOffset) slalom++;
+      else if (spread <= 2 * OBSTACLES.post.rowJitter + 1e-6) row++;
+    }
+  }
+  assert.ok(slalom > 5 && row > 5, `slalom ${slalom}, rządek ${row}`);
 });

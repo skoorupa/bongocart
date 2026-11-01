@@ -1,6 +1,6 @@
 // =====================================================================
 // track/obstacleMesh.js — wygląd przeszkód z track.obstacles: pomarańczowe
-// pachołki z białą opaską i progi zwalniające w żółto-czarne pasy.
+// słupki drogowe z białymi pasami i progi zwalniające w żółto-czarne pasy.
 // InstancedMesh: jedno wywołanie rysowania na rodzaj. Sprzątanie przez
 // disposeObject (trackMesh.js) razem z resztą toru.
 // =====================================================================
@@ -12,22 +12,33 @@ export function buildObstaclesVisual(track) {
   const P = OBSTACLES.post, B = OBSTACLES.bump, C = OBSTACLES.colors;
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
 
-  // --- Pachołki: stożek + opaska (krótki walec).
+  // --- Słupki drogowe: walec z zaokrąglonym czubkiem, ciemna podstawa,
+  // białe pasy odblaskowe.
   const posts = track.posts;
   if (posts.length) {
-    const coneGeo = new THREE.ConeGeometry(P.radius, P.height, 10);
-    coneGeo.translate(0, P.height / 2 + RENDER.roadY, 0);
-    const bandR = P.radius * (1 - OBSTACLES.postBandAt) * 1.08; // promień stożka na wysokości opaski + odrobina
-    const bandGeo = new THREE.CylinderGeometry(bandR * 0.92, bandR * 1.08, OBSTACLES.postBandHeight, 10);
-    bandGeo.translate(0, P.height * OBSTACLES.postBandAt + RENDER.roadY, 0);
-    const cones = new THREE.InstancedMesh(coneGeo, new THREE.MeshLambertMaterial({ color: C.post, flatShading: true }), posts.length);
-    const bands = new THREE.InstancedMesh(bandGeo, new THREE.MeshLambertMaterial({ color: C.postBand, flatShading: true }), posts.length);
+    const seg = OBSTACLES.postSegments, y0 = RENDER.roadY;
+    const body = new THREE.CylinderGeometry(P.radius, P.radius, P.height, seg);
+    body.translate(0, y0 + P.height / 2, 0);
+    const cap = new THREE.SphereGeometry(P.radius, seg, 4, 0, Math.PI * 2, 0, Math.PI / 2);
+    cap.scale(1, OBSTACLES.postCapFlatten, 1);
+    cap.translate(0, y0 + P.height, 0);
+    const bodyGeo = mergeInto(body, cap);
+    const bandR = P.radius + OBSTACLES.postBandBulge;
+    const bands = OBSTACLES.postBands.map((f) => {
+      const g = new THREE.CylinderGeometry(bandR, bandR, OBSTACLES.postBandHeight, seg);
+      return g.translate(0, y0 + P.height * f, 0);
+    });
+    const bandGeo = mergeInto(...bands);
+    const baseR = P.radius + OBSTACLES.postBaseBulge;
+    const baseGeo = new THREE.CylinderGeometry(baseR, baseR, OBSTACLES.postBaseHeight, seg);
+    baseGeo.translate(0, y0 + OBSTACLES.postBaseHeight / 2, 0);
+    const parts = [[bodyGeo, C.post], [bandGeo, C.postBand], [baseGeo, C.postBase]].map(([geo, color]) =>
+      new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ color, flatShading: true }), posts.length));
     posts.forEach((o, i) => {
       m.makeTranslation(o.x, 0, o.z);
-      cones.setMatrixAt(i, m);
-      bands.setMatrixAt(i, m);
+      parts.forEach((mesh) => mesh.setMatrixAt(i, m));
     });
-    group.add(cones, bands);
+    group.add(...parts);
   }
 
   // --- Progi: rząd prostopadłościanów na przemian żółty/czarny w poprzek toru.
@@ -52,4 +63,20 @@ export function buildObstaclesVisual(track) {
     group.add(mesh);
   });
   return group;
+}
+
+// Łączy kilka geometrii (bez indeksów) w jedną — jedno InstancedMesh na kolor.
+function mergeInto(...geos) {
+  const flat = geos.map((g) => (g.index ? g.toNonIndexed() : g));
+  const pos = [], nor = [];
+  for (const g of flat) {
+    pos.push(...g.attributes.position.array);
+    nor.push(...g.attributes.normal.array);
+  }
+  geos.forEach((g) => g.dispose());
+  flat.forEach((g) => g.dispose());
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  return out;
 }

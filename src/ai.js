@@ -24,6 +24,7 @@ export function createDriver(track, difficulty, seed) {
   const phases = AI.noisePeriods.map(() => rng.range(0, Math.PI * 2));
   let t = 0;
   let avoidOffset = 0;
+  let postSide = 0; // strona objazdu grupy słupków (+1 prawa, −1 lewa, 0 = brak grupy)
   let drifting = false;
   let stuckTime = 0;
   let reverseLeft = 0;
@@ -54,10 +55,32 @@ export function createDriver(track, difficulty, seed) {
 
   // Przesunięcie, żeby nie wjechać w kart przed sobą (+ = w prawo).
   // Banany omija tylko bot z skill.dodge, słupki toru — każdy. Słupki
-  // sprawdzamy najpierw: unik przed kartem nie może wepchnąć w szykanę.
-  function avoidance(kart, others, hazards, obstacles) {
+  // sprawdzamy najpierw: unik przed kartem nie może wepchnąć w słupek.
+  function avoidance(kart, others, hazards, obstacles, aimLine) {
     const fx = Math.sin(kart.heading), fz = Math.cos(kart.heading);
-    for (const o of [...obstacles, ...others, ...(skill.dodge ? hazards : [])]) {
+    // Słupki w zasięgu (dopóki nie minięte całym kartem) objeżdżamy całą
+    // grupą z jednej strony: z prawej na wysokości >= max(oś + zapas), z lewej
+    // <= min(oś − zapas). Jeśli linia jazdy przy słupkach sama je omija —
+    // nic nie robimy; inaczej trzymamy bliższą kartowi stronę (wybraną raz), dopóki grupa
+    // jest w zasięgu. Wynik względem linii w punkcie celowania (aimLine).
+    let right = -Infinity, left = Infinity, first = null, firstAhead = Infinity;
+    for (const o of obstacles) {
+      const ahead = (o.x - kart.x) * fx + (o.z - kart.z) * fz;
+      if (ahead <= -(KART.radius + o.radius) || ahead > AI.avoidPost.ahead) continue;
+      const clear = KART.radius + o.radius + AI.avoidPost.margin;
+      right = Math.max(right, o.lateral + clear);
+      left = Math.min(left, o.lateral - clear);
+      if (ahead < firstAhead) { first = o; firstAhead = ahead; }
+    }
+    if (!first) postSide = 0;
+    else {
+      const lineAtPosts = track.racingLine[first.index].offset;
+      if (lineAtPosts >= right || lineAtPosts <= left) return 0;
+      // Stronę wybieramy raz na grupę (bez przeskakiwania w trakcie objazdu).
+      if (!postSide) postSide = right - kart.lateral <= kart.lateral - left ? 1 : -1;
+      return (postSide > 0 ? right : left) - aimLine;
+    }
+    for (const o of [...others, ...(skill.dodge ? hazards : [])]) {
       const dx = o.x - kart.x, dz = o.z - kart.z;
       const ahead = dx * fx + dz * fz;
       const side = dx * -fz + dz * fx;
@@ -103,13 +126,14 @@ export function createDriver(track, difficulty, seed) {
       const speed = kart.speed;
 
       // --- Cel na linii jazdy + "pływanie" + omijanie.
-      avoidOffset = approach(avoidOffset, avoidance(kart, ctx.others, ctx.hazards ?? [], ctx.obstacles ?? []), AI.avoid.rate * dt);
       const noise = skill.lineNoise * AI.noisePeriods.reduce((sum, p, k) => sum + Math.sin(phases[k] + (t * Math.PI * 2) / p), 0) / AI.noisePeriods.length;
       const look = AI.lookAheadMin + Math.max(0, speed) * AI.lookAheadTime;
       const j = (i + Math.round(look / track.step)) % n;
       const line = track.racingLine[j], p = track.points[j];
+      avoidOffset = approach(avoidOffset, avoidance(kart, ctx.others, ctx.hazards ?? [], ctx.obstacles ?? [], line.offset), AI.avoid.rate * dt);
       const maxOff = track.halfWidth - KART.radius;
-      const off = clamp(line.offset + noise + avoidOffset, -maxOff, maxOff) - line.offset;
+      // Przy objeździe słupków bez "pływania" — inaczej zjada zapas.
+      const off = clamp(line.offset + (postSide ? 0 : noise) + avoidOffset, -maxOff, maxOff) - line.offset;
       const tx = line.x + p.nx * off, tz = line.z + p.nz * off;
       const err = angleDiff(Math.atan2(tx - kart.x, tz - kart.z), kart.heading);
       let steer = clamp(-err * skill.steerGain, -1, 1);

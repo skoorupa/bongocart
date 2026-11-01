@@ -325,9 +325,11 @@ function placeItemBoxes(seed, points, step, length, itemFrequency) {
   return boxes;
 }
 
-// Przeszkody: szykany ze słupków przy jednej krawędzi i progi zwalniające.
+// Przeszkody: grupy słupków w środku jezdni (slalom albo rządek) i progi
+// zwalniające przy krawędzi.
 // Tylko na prostych/łagodnych łukach, z dala od startu, mety i skrzynek;
-// wolny przejazd zawsze >= OBSTACLES.minFreeFraction szerokości jezdni.
+// wolny przejazd: obok słupka >= post.minGap z każdej strony, obok progu
+// >= OBSTACLES.minFreeFraction szerokości jezdni.
 function placeObstacles(seed, points, step, length, itemBoxes, density) {
   const O = OBSTACLES, P = O.post, B = O.bump;
   const spacing = O.densities[density].spacing;
@@ -343,15 +345,16 @@ function placeObstacles(seed, points, step, length, itemBoxes, density) {
     }
     return true;
   };
-  // Najdalej od krawędzi: limit szykany i limit wolnego przejazdu.
-  const maxDepth = TRACK.width * Math.min(P.maxBlockFraction, 1 - O.minFreeFraction);
+  // Słupki w środkowej strefie: z każdej strony zostaje >= P.minGap.
+  const maxLat = half - P.radius - P.minGap;
   const out = [];
   for (let s = O.afterStart + step; ; s += spacing * (1 + rng.range(-O.jitter, O.jitter))) {
     // Losowania zawsze w tej samej kolejności (determinizm).
     const side = rng.next() < 0.5 ? -1 : 1;
     const isBump = rng.next() < O.bumpChance;
     const count = rng.int(P.count[0], P.count[1]);
-    const depths = Array.from({ length: P.count[1] }, () => rng.range(O.edgeMargin + 2 * P.radius, maxDepth));
+    const slalom = rng.next() < P.slalomChance;
+    const jitter = Array.from({ length: P.count[1] }, () => rng.range(-P.rowJitter, P.rowJitter));
     const span = isBump ? B.depth : (count - 1) * P.spacing;
     // Wylosowane miejsce zajęte (skrzynki, zakręt) -> szukamy dalej, zamiast pomijać.
     const ok = (x) => !nearBox(x) && !nearBox(x + span) && gentle(x) && gentle(x + span);
@@ -369,8 +372,9 @@ function placeObstacles(seed, points, step, length, itemBoxes, density) {
       for (let k = 0; k < count; k++) {
         const index = mod(Math.round((s + k * P.spacing) / step), n);
         const p = points[index];
-        const lat = side * (half - depths[k] + P.radius);
-        out.push({ type: 'post', x: p.x + p.nx * lat, z: p.z + p.nz * lat, s: p.s, radius: P.radius });
+        // Slalom: na przemian lewo/prawo od osi; rządek: na osi z rozrzutem.
+        const lat = clamp(slalom ? side * (k % 2 ? -1 : 1) * P.slalomOffset : jitter[k], -maxLat, maxLat);
+        out.push({ type: 'post', x: p.x + p.nx * lat, z: p.z + p.nz * lat, s: p.s, index, lateral: lat, radius: P.radius });
       }
     }
   }

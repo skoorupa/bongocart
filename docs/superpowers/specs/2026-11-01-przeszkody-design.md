@@ -107,3 +107,12 @@ Nowy `src/track/obstacleMesh.js` (trackMesh.js zostaje przy jezdni):
 - Słupek tuż za łukiem może zaskoczyć gracza. Łagodzą to strefa wykluczonych zakrętów i szeroki wolny przejazd.
 - Bot omija słupek przesunięciem `AI.avoid.shift`. Jeśli wolny pas jest po drugiej stronie, przesunięcie musi iść
   w stronę wolnego przejazdu; obecna logika (odsuń się od przeszkody) już to robi.
+
+## Zmiana 2026-11-01 (po pierwszym odbiorze)
+
+Na prośbę użytkownika: słupki większe (promień 0,6 m, wysokość 1,4 m), model słupka drogowego zamiast pachołka,
+ustawione w **środkowej strefie** jezdni w grupach 2–3 co 8 m — losowo **slalom** (na przemian ±2,4 m od osi)
+albo **rządek** (na osi, rozrzut ±0,8 m). Niezmiennik wolnego przejazdu dla słupków: z **każdej** strony słupka
+≥ `post.minGap` = 3,5 m (zamiast 60% szerokości po jednej stronie; progi bez zmian). Uderzenie: kart traci 30%
+prędkości raz na kontakt i jest wypychany w bok, obok słupka (bez odbicia do tyłu). Boty objeżdżają całą grupę
+z jednej strony (wybranej raz), bez „pływania” po torze w trakcie objazdu.
