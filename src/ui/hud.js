@@ -77,9 +77,9 @@ export function createHud() {
     const force = $('forceStart');
     force.hidden = !(between && isHost);
     force.onclick = () => currentTour?.onForce();
-    // Klient między mapami nie przerywa turnieju (wyjście: Esc -> opuść pokój).
-    back.hidden = between && !isHost;
-    back.textContent = done ? 'Wróć do lobby' : 'Przerwij turniej';
+    // Host przerywa turniej (wszyscy do lobby); klient może opuścić pokój.
+    back.hidden = false;
+    back.textContent = done ? 'Wróć do lobby' : isHost ? 'Przerwij turniej' : 'Opuść pokój';
   }
 
   function banner(text, seconds = RACE.bannerSeconds, kind = '') {

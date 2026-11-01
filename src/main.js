@@ -487,9 +487,15 @@ function tourOptions() {
     onReady: readyUp,
     onForce: nextMap,
     onQuit: () => {
+      const done = tourneyView.phase === 'done';
       endTournament();
-      if (mode === 'client') enterLobby();
-      else finishToLobby();
+      if (mode === 'client') {
+        if (done) enterLobby();
+        else leaveRoom('Opuszczono pokój.');
+      } else if (mode === 'host' && !done) {
+        host.endRace(true); // przerwanie: klienci dostają abort i wracają do lobby
+        enterLobby();
+      } else finishToLobby();
     },
   };
 }
@@ -525,7 +531,7 @@ $('startRace').addEventListener('click', startRace);
 // i w polach formularza Tab działa normalnie (fokus).
 const typing = (t) => t instanceof HTMLElement && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName);
 window.addEventListener('keydown', (e) => {
-  if (e.code !== 'Tab' || !inRace || !tourneyView || typing(e.target)) return;
+  if (e.code !== 'Tab' || !inRace || !tourneyView || !$('results').hidden || typing(e.target)) return;
   e.preventDefault();
   if (!e.repeat) hud.showTabBoard(tourneyView, localId);
 });

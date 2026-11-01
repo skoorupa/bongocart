@@ -7,7 +7,7 @@
 //   host -> klient: welcome {id}, reject {reason: full|version}, lobby {lobby},
 //                   start {...}, snap {...}, abort, ping
 // =====================================================================
-import { NET, MAX_RACERS, KART_COLORS, SETTINGS_SCHEMA } from '../config.js';
+import { NET, MAX_RACERS, KART_COLORS, SETTINGS_SCHEMA, TOURNAMENT } from '../config.js';
 import { sanitizeName } from './lobby.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -138,7 +138,7 @@ export function applyRaceAndItems(game, snap) {
 // przycinamy typy i rozmiary. null = nie da się użyć.
 const TOURNEY_PHASES = ['racing', 'between', 'done'];
 const MAX_MAPS = SETTINGS_SCHEMA.find((e) => e.key === 'mapCount').max;
-const MAX_SECONDS = 1e6; // [s] górna granica łącznego czasu (ochrona przed śmieciami)
+const MAX_MAP_POINTS = TOURNAMENT.points[0]; // najwięcej punktów za jedną mapę
 
 export function sanitizeTourneyView(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -148,9 +148,9 @@ export function sanitizeTourneyView(raw) {
     name: sanitizeName(r?.name, 'Gracz'),
     color: KART_COLORS.includes(r?.color) ? r.color : KART_COLORS[0],
     isHuman: !!r?.isHuman,
-    points: int(r?.points, 0, MAX_MAPS * 100),
-    time: num(r?.time, 0, MAX_SECONDS),
-    lastPoints: int(r?.lastPoints, 0, 100),
+    points: int(r?.points, 0, MAX_MAPS * MAX_MAP_POINTS),
+    time: num(r?.time, 0, TOURNAMENT.maxTotalSeconds),
+    lastPoints: int(r?.lastPoints, 0, MAX_MAP_POINTS),
     left: !!r?.left,
   }));
   return {
