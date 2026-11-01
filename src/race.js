@@ -17,10 +17,13 @@ const wrap = (v, L) => ((v % L) + L) % L;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
 // racers: [{id, name, color, isHuman}]
-export function createRace({ track, laps, racers }) {
+// waitForAll (turniej): koniec dopiero, gdy dojadą wszyscy, także boty
+// (albo po limicie czasu od pierwszego na mecie).
+export function createRace({ track, laps, racers, waitForAll = false }) {
   return {
     track,
     laps,
+    waitForAll,
     phase: 'countdown', // countdown | racing | finished
     time: -RACE.countdownSeconds, // < 0 w trakcie odliczania
     firstFinishTime: null,
@@ -70,7 +73,7 @@ export function updateRace(race, dt, karts) {
   // Koniec: wszyscy ludzie na mecie (bez ludzi — wszyscy) albo minął
   // limit od pierwszego finiszu.
   const anyHuman = race.racers.some((r) => r.isHuman);
-  const humansDone = race.racers.every((r) => (anyHuman && !r.isHuman) || r.finishTime !== null);
+  const humansDone = race.racers.every((r) => (anyHuman && !r.isHuman && !race.waitForAll) || r.finishTime !== null);
   const timedOut = race.firstFinishTime !== null && race.time - race.firstFinishTime >= RACE.finishTimeoutSeconds;
   if (humansDone || timedOut) {
     race.phase = 'finished';
@@ -167,4 +170,20 @@ export function formatTime(seconds) {
   const m = Math.floor(cs / 6000);
   const s = Math.floor(cs / 100) % 60;
   return `${m}:${String(s).padStart(2, '0')}.${String(cs % 100).padStart(2, '0')}`;
+}
+
+// Kogo można oglądać po swojej mecie: jadący, najpierw ludzie, potem boty
+// (każda grupa wg kolejności w wyścigu).
+export function spectateTargets(race, localId) {
+  const live = standings(race).filter((r) => r.finishTime === null && r.id !== localId);
+  return [...live.filter((r) => r.isHuman), ...live.filter((r) => !r.isHuman)].map((r) => r.id);
+}
+
+// Następny / poprzedni oglądany (dir ±1). Oglądany zniknął z listy
+// (dojechał) -> pierwszy z listy; pusta lista -> null.
+export function cycleSpectate(ids, current, dir) {
+  if (!ids.length) return null;
+  const i = ids.indexOf(current);
+  if (i === -1) return ids[0];
+  return ids[(i + dir + ids.length) % ids.length];
 }

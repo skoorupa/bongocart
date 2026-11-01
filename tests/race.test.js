@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateTrack } from '../src/track/generator.js';
-import { createRace, updateRace, standings, formatTime, showWrongWay, gapToLeader } from '../src/race.js';
+import { createRace, updateRace, standings, formatTime, showWrongWay, gapToLeader, spectateTargets, cycleSpectate } from '../src/race.js';
 import { createKartState, stepKart, kartStats } from '../src/physics.js';
 import { RACE, PHYSICS, TRACK } from '../src/config.js';
 
@@ -177,4 +177,41 @@ test('strata do lidera: lider null, dalej proporcjonalnie do dystansu; ukończen
   order = standings(race);
   const b = race.racers.find((r) => r.id === 'b'), a = race.racers.find((r) => r.id === 'a');
   assert.ok(Math.abs(gapToLeader(race, order, b) - (b.finishTime - a.finishTime)) < 1e-9);
+});
+
+test('waitForAll (turniej): boty też muszą dojechać; limit czasu nadal działa', () => {
+  const mk = () => createRace({ track, laps: 1, waitForAll: true, racers: [{ id: 'a', isHuman: true }, { id: 'bot', isHuman: false }] });
+  const race = mk();
+  const karts = new Map([['a', synthetic(L - 8)], ['bot', synthetic(L - 10)]]);
+  toGo(race, karts);
+  const ev = drive(race, karts, 'a', L + 10);
+  assert.ok(!ev.some((e) => e.type === 'end'), 'czeka na bota');
+  const ev2 = drive(race, karts, 'bot', L + 12);
+  assert.ok(ev2.some((e) => e.type === 'end'));
+  assert.notEqual(race.racers[1].finishTime, null);
+
+  const late = mk();
+  const k2 = new Map([['a', synthetic(L - 8)], ['bot', synthetic(L - 10)]]);
+  toGo(late, k2);
+  drive(late, k2, 'a', L + 10);
+  let ended = false;
+  for (let t = 0; t < RACE.finishTimeoutSeconds + 1 && !ended; t += DT) ended = updateRace(late, DT, k2).some((e) => e.type === 'end');
+  assert.ok(ended, 'limit czasu kończy wyścig');
+});
+
+test('oglądanie po mecie: tylko jadący, najpierw ludzie; zmiana w kółko', () => {
+  const race = { racers: [
+    { id: 'me', isHuman: true, finishTime: 50, progress: 900 },
+    { id: 'b1', isHuman: false, finishTime: null, progress: 800 },
+    { id: 'h2', isHuman: true, finishTime: null, progress: 500 },
+    { id: 'b2', isHuman: false, finishTime: null, progress: 700 },
+    { id: 'b3', isHuman: false, finishTime: 52, progress: 900 },
+  ] };
+  const ids = spectateTargets(race, 'me');
+  assert.deepEqual(ids, ['h2', 'b1', 'b2']);
+  assert.equal(cycleSpectate(ids, 'h2', 1), 'b1');
+  assert.equal(cycleSpectate(ids, 'h2', -1), 'b2');
+  assert.equal(cycleSpectate(ids, 'b2', 1), 'h2');
+  assert.equal(cycleSpectate(ids, 'zniknął', 1), 'h2', 'oglądany dojechał -> pierwszy z listy');
+  assert.equal(cycleSpectate([], 'x', 1), null);
 });

@@ -23,6 +23,7 @@ import { buildObstaclesVisual } from './track/obstacleMesh.js';
 import { createChaseCamera } from './camera.js';
 import { createGame, buildRoster } from './game.js';
 import { createTournament, mapSeedOf } from './tournament.js';
+import { spectateTargets, cycleSpectate } from './race.js';
 import { createHud } from './ui/hud.js';
 import { createAudio } from './audio.js';
 import { createRng, deriveSeed } from './rng.js';
@@ -82,6 +83,7 @@ let menuOpen = false;
 let resultsIn = null; // odliczanie do pokazania tabeli wyników
 let tournament = null; // turniej (host/solo są jego właścicielem; klient: null)
 let tourneyView = null; // widok turnieju do pokazania (host/solo: z tournament, klient: z wiadomości)
+let spectateId = null; // po własnej mecie: kogo pokazuje kamera (null = własny kart)
 let hostTick = 0;
 let pendingEvents = []; // host: zdarzenia do najbliższego snapshotu
 const meshes = new Map(); // id -> mesh karta
@@ -390,6 +392,7 @@ function enterLobby() {
 
 function beginRace(g) {
   setGame(g);
+  spectateId = null;
   lastCount = null;
   lastSlotReady = false;
   inRace = true;
@@ -536,6 +539,16 @@ window.addEventListener('keydown', (e) => {
   if (!e.repeat) hud.showTabBoard(tourneyView, localId);
 });
 window.addEventListener('keyup', (e) => { if (e.code === 'Tab') hud.hideTabBoard(); });
+
+// Po mecie: ← / → (A / D) zmienia oglądanego zawodnika.
+const SPECTATE_KEYS = { ArrowLeft: -1, KeyA: -1, ArrowRight: 1, KeyD: 1 };
+window.addEventListener('keydown', (e) => {
+  const dir = SPECTATE_KEYS[e.code];
+  if (!dir || !spectateId || !$('results').hidden || typing(e.target)) return;
+  e.preventDefault();
+  spectateId = cycleSpectate(spectateTargets(game.race, localId), spectateId, dir);
+  chase.snap(viewOf(spectateId, 1));
+});
 window.addEventListener('blur', () => hud.hideTabBoard());
 $('resume').addEventListener('click', () => setMenu(false));
 $('quitRace').addEventListener('click', () => {
@@ -587,6 +600,20 @@ function handleEvents(events) {
       host?.sendTourney();
     }
   }
+}
+
+// Kogo pokazuje kamera: własny kart, a po własnej mecie — wybranego
+// jadącego (gdy oglądany dojedzie, przechodzimy do następnego).
+function followTarget(done) {
+  if (!game.karts.has(localId)) return game.roster[0].id;
+  if (!inRace || !done.has(localId)) {
+    spectateId = null;
+    return localId;
+  }
+  const next = cycleSpectate(spectateTargets(game.race, localId), spectateId, 0);
+  if (next !== spectateId && next) chase.snap(viewOf(next, 1));
+  spectateId = next;
+  return spectateId ?? localId;
 }
 
 // Stan do rysowania: interpolacja między krokami fizyki (płynność przy
@@ -732,17 +759,20 @@ renderer.setAnimationLoop(() => {
   // Klient: inne karty są już zinterpolowane (prev = bieżący), więc alpha
   // działa tylko na własny kart między krokami predykcji.
   const alpha = running ? acc / PHYSICS.fixedDt : 1;
+  const done = new Set(inRace ? game.race.racers.filter((r) => r.finishTime !== null).map((r) => r.id) : []);
   for (const [id, m] of meshes) {
+    m.object.visible = !done.has(id); // po mecie kart znika z toru
     const v = viewOf(id, alpha);
     m.update(v, running ? dt : 0);
     m.setLabelDistance(Math.hypot(v.x - chase.camera.position.x, v.z - chase.camera.position.z));
   }
   itemsView.update(game.items, running || !inRace ? dt : 0);
-  const followId = game.karts.has(localId) ? localId : game.roster[0].id;
-  const me = viewOf(followId, alpha, ctl.lookBack && running && !menuOpen);
+  const followId = followTarget(done);
+  const me = viewOf(followId, alpha, ctl.lookBack && running && !menuOpen && followId === localId);
   chase.update(me, dt);
-  audio.update(running && !menuOpen && followId === localId ? me : null, ctl.throttle);
-  minimap.draw(game.roster.map((r) => {
+  audio.update(running && !menuOpen ? me : null, followId === localId ? ctl.throttle : 1);
+  hud.setSpectating(followId === localId ? null : game.roster.find((r) => r.id === followId)?.name ?? null);
+  minimap.draw(game.roster.filter((r) => !done.has(r.id)).map((r) => {
     const v = r.id === followId ? me : viewOf(r.id, alpha);
     return { x: v.x, z: v.z, color: r.color, isLocal: r.id === localId };
   }));

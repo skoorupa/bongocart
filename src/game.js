@@ -40,7 +40,7 @@ export function buildRoster(settings, humans) {
 // — wtedy humans/minRacers nie decydują o składzie.
 export function createGame({ track, settings, humans, seed, roster: fixed = null }) {
   const roster = fixed ? fixed.map((r) => ({ ...r })) : buildRoster(settings, humans);
-  const race = createRace({ track, laps: settings.laps, racers: roster });
+  const race = createRace({ track, laps: settings.laps, racers: roster, waitForAll: settings.gameMode === 'tournament' });
   const stats = kartStats(settings.speedClass);
   const karts = new Map(roster.map((r, slot) => [r.id, createKartState(track, slot)]));
   const drivers = new Map();
@@ -48,7 +48,6 @@ export function createGame({ track, settings, humans, seed, roster: fixed = null
     if (!drivers.has(id)) drivers.set(id, createDriver(track, settings.botDifficulty, deriveSeed(seed, 'bot', id)));
     return drivers.get(id);
   };
-  const kartList = [...karts.values()];
   const items = createItems({ track, settings, seed, racerIds: roster.map((r) => r.id) });
 
   // Gumka: odległość bota od najlepszego człowieka, który jeszcze jedzie.
@@ -84,14 +83,19 @@ export function createGame({ track, settings, humans, seed, roster: fixed = null
       const live = race.racers.filter((r) => r.isHuman && r.finishTime === null);
       const leaderProgress = live.length ? Math.max(...live.map((r) => r.progress)) : null;
       const uses = new Set();
+      // Po mecie kart znika z symulacji: stoi, nie zderza się, nie jest
+      // celem przedmiotów ani przeszkodą dla botów (rysowanie go ukrywa).
+      const active = new Map(order.filter((r) => r.finishTime === null).map((r) => [r.id, karts.get(r.id)]));
+      const activeList = [...active.values()];
 
       order.forEach((r, place) => {
+        if (r.finishTime !== null) return;
         const kart = karts.get(r.id);
         let input;
         if (race.phase === 'countdown') input = NEUTRAL;
         else if (r.isHuman && racing && r.finishTime === null) input = inputs.get(r.id) ?? NEUTRAL;
         else {
-          const others = kartList.filter((k) => k !== kart);
+          const others = activeList.filter((k) => k !== kart);
           input = driverOf(r.id).control(kart, {
             others,
             stats,
@@ -108,11 +112,11 @@ export function createGame({ track, settings, humans, seed, roster: fixed = null
         if (input.item) uses.add(r.id);
         stepKart(kart, input, track, stats, dt);
       });
-      if (settings.kartCollisions) collideKarts(kartList);
+      if (settings.kartCollisions) collideKarts(activeList);
 
       const events = race.phase === 'countdown' ? [] : stepItems(items, {
         track,
-        karts,
+        karts: active,
         order: order.map((r) => r.id),
         finished: new Set(race.racers.filter((r) => r.finishTime !== null).map((r) => r.id)),
       }, uses, dt);

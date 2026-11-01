@@ -225,5 +225,12 @@ export function createHud() {
       $('tabBoard').hidden = false;
     },
     hideTabBoard() { $('tabBoard').hidden = true; },
+    // Po mecie: kogo oglądamy (null = własny kart).
+    setSpectating(name) {
+      const el2 = $('spectate');
+      const text = name ? `Oglądasz: ${name}  (← / → zmiana)` : '';
+      if (el2.textContent !== text) el2.textContent = text;
+      el2.hidden = !name;
+    },
   };
 }

@@ -87,6 +87,7 @@ export function stepItems(items, ctx, uses, dt) {
   for (const [id, slot] of items.slots) {
     slot.roll = Math.max(0, slot.roll - dt);
     const k = karts.get(id);
+    if (!k) continue; // kart po mecie (poza symulacją)
     k.shieldTime = Math.max(0, k.shieldTime - dt);
     if (!uses.has(id) || !slot.item || slot.roll > 0 || k.spinTime > 0) continue;
     useItem(items, id, slot.item, ctx);

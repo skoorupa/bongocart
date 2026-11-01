@@ -37,7 +37,7 @@ W lobby ustaw **Tryb gry: Turniej** i **Liczbę map** (domyślnie 10; okrążeni
 Tory turnieju generują się z seeda (ten sam seed = te same mapy). Za miejsce na każdej mapie są punkty
 15-12-10-8-6-4-2-1; przy remisie wygrywa mniejszy łączny czas (kto nie dojechał, dostaje czas trwania wyścigu).
 Po każdej mapie widać tabelę turnieju; każdy klika **Gotowy**, a host może **Start mimo wszystko**.
-W trakcie wyścigu tabela jest pod klawiszem **Tab**. Gracz, który wyjdzie, zostaje w tabeli — dalej jedzie za niego bot.
+W turnieju wyścig trwa, aż dojadą wszyscy (także boty; limit 30 s od pierwszego na mecie). W trakcie wyścigu tabela jest pod klawiszem **Tab**. Gracz, który wyjdzie, zostaje w tabeli — dalej jedzie za niego bot.
 
 ## Sterowanie
 
@@ -53,6 +53,7 @@ W trakcie wyścigu tabela jest pod klawiszem **Tab**. Gracz, który wyjdzie, zos
 | M | — | dźwięk wł./wył. |
 | Esc | Start | menu (solo: pauza) |
 | Tab (trzymany) | — | tabela turnieju (w trybie turnieju) |
+| ← / → (A / D) po mecie | — | zmiana oglądanego zawodnika (po mecie kart znika z toru) |
 
 ## Architektura
 

@@ -73,7 +73,7 @@ test('zderzenia: karty się rozsuwają i odbijają; wyłączone = przenikają', 
   }
 });
 
-test('gracz po mecie: kartem jedzie AI', () => {
+test('gracz po mecie: kart znika z symulacji (stoi, nie steruje nim AI)', () => {
   const game = createGame({ track, settings: settingsWith({ minRacers: 1, laps: 1 }), humans: [human('p')], seed: 'f' });
   const me = game.race.racers[0];
   // "Gracz" jedzie do mety; potem przejmuje AI.
@@ -84,8 +84,28 @@ test('gracz po mecie: kartem jedzie AI', () => {
     return new Map([['p', { throttle: 1, brake: 0, steer: Math.max(-1, Math.min(1, -err * 3)), drift: false }]]);
   });
   assert.notEqual(me.finishTime, null);
+  const at = { x: k.x, z: k.z };
   runUntil(game, () => false, 5); // brak sterowania gracza
-  assert.ok(k.speed > 10, `speed ${k.speed}`);
+  assert.deepEqual({ x: k.x, z: k.z }, at, 'kart po mecie stoi');
+});
+
+test('kart po mecie nie zderza się i nie jest celem: inne jadą przez niego', () => {
+  const game = createGame({ track, settings: settingsWith({ minRacers: 2, laps: 1, kartCollisions: true }), humans: [], seed: 'ghost' });
+  const [a, b] = game.race.racers;
+  runUntil(game, () => game.race.phase === 'racing', RACE.countdownSeconds + 1);
+  a.finishTime = game.race.time; // a "dojechał"
+  const ka = game.karts.get(a.id), kb = game.karts.get(b.id);
+  Object.assign(ka, { x: kb.x, z: kb.z }); // dokładnie na b
+  const before = { x: ka.x, z: ka.z };
+  game.step(DT, NONE);
+  assert.deepEqual({ x: ka.x, z: ka.z }, before, 'skończony kart nie jest rozpychany');
+});
+
+test('wyścig botów z przedmiotami do końca: skończone karty nie psują przedmiotów', () => {
+  const t = generateTrack({ seed: 'itemsend', size: 'small', difficulty: 'easy', theme: 'random', itemFrequency: 'often' });
+  const game = createGame({ track: t, settings: settingsWith({ minRacers: 6, laps: 1, itemFrequency: 'often' }), humans: [], seed: 'ie' });
+  runUntil(game, () => game.race.phase === 'finished', 150);
+  assert.equal(game.race.phase, 'finished');
 });
 
 test('bot zakleszczony przodem w bandzie wyjeżdża', () => {
