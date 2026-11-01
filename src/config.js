@@ -438,7 +438,7 @@ export const RACE = {
 
 // Wersja gry: klient z inną wersją niż host nie dołączy (inny protokół
 // albo fizyka). Zmieniaj przy każdym wdrożeniu, które zmienia grę.
-export const GAME_VERSION = '0.10.0';
+export const GAME_VERSION = '0.11.0';
 
 // ---------------------------------------------------------------------
 // Dźwięk (Web Audio, generowany). Głośności 0..1, częstotliwości [Hz].
@@ -564,6 +564,17 @@ export const PRESETS = {
 };
 
 // ---------------------------------------------------------------------
+// Turniej: seria map, punkty za miejsca sumują się (tournament.js).
+// ---------------------------------------------------------------------
+export const TOURNAMENT = {
+  points: [15, 12, 10, 8, 6, 4, 2, 1], // za miejsca 1..8; dalsze = 0
+  modes: {
+    race: { label: 'Pojedynczy wyścig' },
+    tournament: { label: 'Turniej' },
+  },
+};
+
+// ---------------------------------------------------------------------
 // Pomocnik: obiekt {id: {label}} -> opcje [{value, label}] do schematu.
 // ---------------------------------------------------------------------
 const optionsOf = (obj) => Object.entries(obj).map(([value, v]) => ({ value, label: v.label }));
@@ -581,6 +592,8 @@ const optionsOf = (obj) => Object.entries(obj).map(([value, v]) => ({ value, lab
 //   text        — maxLength, pattern (RegExp)
 // ---------------------------------------------------------------------
 export const SETTINGS_SCHEMA = [
+  { key: 'gameMode', type: 'select', label: 'Tryb gry', options: optionsOf(TOURNAMENT.modes), default: 'race' },
+  { key: 'mapCount', type: 'int', label: 'Liczba map (turniej)', min: 2, max: 15, step: 1, default: 10 },
   { key: 'laps', type: 'int', label: 'Liczba okrążeń', min: 1, max: 15, step: 1, default: 5 },
   {
     key: 'minRacers', type: 'int', label: 'Min. liczba uczestników (boty dopełniają)',

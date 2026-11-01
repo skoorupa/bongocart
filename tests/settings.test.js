@@ -59,3 +59,8 @@ test('przeszkody: domyślnie "Mało", presety wg spec', async () => {
   assert.equal(PRESETS.chaos.values.obstacles, 'many');
   assert.equal(PRESETS.clean.values.obstacles, 'none');
 });
+
+test('turniej: domyślnie pojedynczy wyścig, 10 map', () => {
+  assert.equal(defaultSettings().gameMode, 'race');
+  assert.equal(defaultSettings().mapCount, 10);
+});

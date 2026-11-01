@@ -1,0 +1,84 @@
+// Testy turnieju: punktacja, DNF, remisy, seedy map, gotowość, fazy.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createTournament, mapSeedOf } from '../src/tournament.js';
+import { TOURNAMENT } from '../src/config.js';
+
+const H = (id) => ({ id, name: id, color: 0xe63946, isHuman: true });
+const B = (id) => ({ id, name: id, color: 0x1e88e5, isHuman: false });
+// Minimalny wyścig: standings() potrzebuje racers {id, finishTime, progress} i time.
+const race = (time, rows) => ({ time, racers: rows.map(([id, finishTime, progress = 0]) => ({ id, finishTime, progress })) });
+
+test('punkty za miejsca i DNF z czasem trwania wyścigu', () => {
+  const t = createTournament({ seed: 's', mapCount: 3, roster: [H('a'), B('b'), B('c')] });
+  t.recordRace(race(75, [['c', null, 500], ['a', 60], ['b', 62]]));
+  const tab = Object.fromEntries(t.table().map((r) => [r.id, r]));
+  assert.deepEqual([tab.a.points, tab.b.points, tab.c.points], TOURNAMENT.points.slice(0, 3));
+  assert.deepEqual([tab.a.time, tab.b.time, tab.c.time], [60, 62, 75]);
+  assert.equal(tab.a.lastPoints, TOURNAMENT.points[0]);
+  assert.deepEqual(t.table().map((r) => r.id), ['a', 'b', 'c']);
+});
+
+test('sumowanie po mapach; remis rozstrzyga czas', () => {
+  const t = createTournament({ seed: 's', mapCount: 3, roster: [H('a'), H('b')] });
+  t.recordRace(race(70, [['a', 50], ['b', 60]]));
+  t.nextMap();
+  t.recordRace(race(70, [['b', 55], ['a', 56]]));
+  const [first, second] = t.table();
+  assert.equal(first.points, second.points);
+  assert.equal(first.id, 'a'); // 106 s < 115 s
+  assert.equal(first.time, 106);
+});
+
+test('mapSeed deterministyczny i różny dla map', () => {
+  const t = createTournament({ seed: 'abc', mapCount: 10, roster: [H('a')] });
+  assert.equal(t.mapSeed(0), 'abc-1');
+  assert.equal(t.mapSeed(9), 'abc-10');
+  assert.equal(mapSeedOf('abc', 0), 'abc-1');
+});
+
+test('gotowość: tylko ludzie w fazie between; boty i nieobecni nie blokują', () => {
+  const t = createTournament({ seed: 's', mapCount: 3, roster: [H('h1'), H('h2'), B('b')] });
+  assert.equal(t.setReady('h1'), false); // faza racing
+  t.recordRace(race(70, [['h1', 50], ['h2', 60], ['b', 65]]));
+  assert.equal(t.setReady('b'), false);
+  assert.equal(t.setReady('obcy'), false);
+  assert.equal(t.allReady(), false);
+  assert.equal(t.setReady('h1'), true);
+  assert.equal(t.setReady('h1'), false); // bez zmiany
+  assert.equal(t.allReady(), false);
+  t.markLeft('h2');
+  assert.equal(t.allReady(), true);
+  assert.deepEqual(t.view().ready, ['h1']);
+  t.nextMap();
+  assert.deepEqual(t.view().ready, []);
+});
+
+test('fazy: racing → between → racing → done', () => {
+  const t = createTournament({ seed: 's', mapCount: 2, roster: [H('a')] });
+  assert.equal(t.phase, 'racing');
+  t.recordRace(race(10, [['a', 9]]));
+  assert.equal(t.phase, 'between');
+  t.nextMap();
+  assert.equal(t.phase, 'racing');
+  assert.equal(t.index, 1);
+  t.recordRace(race(10, [['a', 9]]));
+  assert.equal(t.phase, 'done');
+  assert.equal(t.view().count, 2);
+});
+
+test('markLeft zachowuje punkty i oznacza w tabeli', () => {
+  const t = createTournament({ seed: 's', mapCount: 3, roster: [H('a'), H('b')] });
+  t.recordRace(race(70, [['b', 50], ['a', 60]]));
+  t.markLeft('b');
+  const b = t.table().find((r) => r.id === 'b');
+  assert.equal(b.points, TOURNAMENT.points[0]);
+  assert.equal(b.left, true);
+});
+
+test('więcej zawodników niż punktowanych miejsc: reszta 0 pkt', () => {
+  const roster = Array.from({ length: TOURNAMENT.points.length + 1 }, (_, i) => B(`b${i}`));
+  const t = createTournament({ seed: 's', mapCount: 2, roster });
+  t.recordRace(race(70, roster.map((r, i) => [r.id, 50 + i])));
+  assert.equal(t.table().at(-1).points, 0);
+});
