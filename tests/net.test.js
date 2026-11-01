@@ -4,7 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHostSession, createClientSession } from '../src/net/session.js';
 import { createClientSim } from '../src/net/clientSim.js';
-import { createInputQueue, encodeInput, decodeInput } from '../src/net/protocol.js';
+import { createInputQueue, encodeInput, decodeInput, sanitizeTourneyView } from '../src/net/protocol.js';
+import { createTournament } from '../src/tournament.js';
 import { sanitizeName, HOST_ID } from '../src/net/lobby.js';
 import { createGame } from '../src/game.js';
 import { generateTrack, trackParamsFromSettings } from '../src/track/generator.js';
@@ -33,7 +34,7 @@ function createNet(latency) {
 }
 
 // Host + klienci połączeni sztuczną siecią.
-function setupRoom({ clients = 1, latency = 0.04, settings = {} } = {}) {
+function setupRoom({ clients = 1, latency = 0.04, settings = {}, onAllReady } = {}) {
   const net = createNet(latency);
   const room = { settings: { ...defaultSettings(), ...settings }, seed: 'netseed' };
   const peers = new Map(); // peerId -> klient
@@ -44,6 +45,7 @@ function setupRoom({ clients = 1, latency = 0.04, settings = {} } = {}) {
     send: toClient,
     broadcast: (msg) => { for (const peer of peers.keys()) toClient(peer, msg); },
     disconnect: (peer) => { peers.get(peer).closed = true; },
+    onAllReady,
   });
   const list = [];
   for (let i = 0; i < clients; i++) {
@@ -58,6 +60,7 @@ function setupRoom({ clients = 1, latency = 0.04, settings = {} } = {}) {
         start: (m) => c.inbox.push(m),
         snapshot: (m) => c.inbox.push(m),
         reject: (m) => { c.rejected = m.reason; },
+        tourney: (m) => { c.tourney = m; },
       },
     });
     peers.set(peer, c);
@@ -266,4 +269,86 @@ test('inna wersja gry: host odrzuca', () => {
   assert.deepEqual(sent.map((m) => m.reason), ['version']);
   assert.ok(closed);
   assert.equal(host.lobby.players.length, 1);
+});
+
+// --- Turniej: gotowość i tabela.
+const fakeRace = (ids) => ({ time: 70, racers: ids.map((id, i) => ({ id, finishTime: 50 + i, progress: 0 })) });
+const tourneyFor = (env, ids) => {
+  const roster = ids.map((id) => ({ id, name: id, color: KART_COLORS[0], isHuman: true }));
+  const t = createTournament({ seed: 'net', mapCount: 3, roster });
+  env.host.setTournament(t);
+  return t;
+};
+
+test('turniej: ready tylko w fazie between i tylko od graczy turnieju', () => {
+  const env = setupRoom({ clients: 2 });
+  const [c1, c2] = env.clients;
+  const t = tourneyFor(env, [HOST_ID, c1.id]); // c2 dołączył, ale nie gra w turnieju
+  c1.session.sendReady();
+  env.net.advance(0.2);
+  assert.deepEqual(t.view().ready, [], 'w trakcie mapy ready ignorowane');
+  t.recordRace(fakeRace([HOST_ID, c1.id]));
+  env.host.sendTourney();
+  c1.session.sendReady();
+  c2.session.sendReady();
+  env.net.advance(0.2);
+  assert.deepEqual(t.view().ready, [c1.id]);
+  assert.deepEqual(c1.tourney.ready, [c1.id], 'klient widzi gotowość');
+});
+
+test('turniej: wszyscy gotowi -> onAllReady; wyjście gracza odblokowuje start', () => {
+  let calls = 0;
+  const env = setupRoom({ clients: 2, onAllReady: () => { calls++; } });
+  const [c1, c2] = env.clients;
+  const t = tourneyFor(env, [HOST_ID, c1.id, c2.id]);
+  t.recordRace(fakeRace([HOST_ID, c1.id, c2.id]));
+  env.host.sendTourney();
+  c1.session.sendReady();
+  env.net.advance(0.2);
+  env.host.setReady(HOST_ID);
+  assert.equal(calls, 0);
+  env.host.handleLeave(c2.peer);
+  assert.equal(calls, 1);
+  assert.equal(t.table().find((r) => r.id === c2.id).left, true);
+});
+
+test('turniej: host gotowy ostatni -> onAllReady', () => {
+  let calls = 0;
+  const env = setupRoom({ clients: 1, onAllReady: () => { calls++; } });
+  const [c1] = env.clients;
+  const t = tourneyFor(env, [HOST_ID, c1.id]);
+  t.recordRace(fakeRace([HOST_ID, c1.id]));
+  c1.session.sendReady();
+  env.net.advance(0.2);
+  assert.equal(calls, 0);
+  env.host.setReady(HOST_ID);
+  assert.equal(calls, 1);
+});
+
+test('turniej: klient ma tę samą tabelę co host', () => {
+  const env = setupRoom({ clients: 1 });
+  const [c1] = env.clients;
+  const t = tourneyFor(env, [HOST_ID, c1.id]);
+  t.recordRace(fakeRace([c1.id, HOST_ID]));
+  env.host.sendTourney();
+  env.net.advance(0.2);
+  assert.deepEqual(c1.tourney.table, t.view().table);
+  assert.equal(c1.tourney.phase, 'between');
+});
+
+test('tourney ze śmieciami: sanityzacja', () => {
+  assert.equal(sanitizeTourneyView(null), null);
+  assert.equal(sanitizeTourneyView('x'), null);
+  const v = sanitizeTourneyView({ index: 'x', count: 1e9, phase: 'hack', table: Array.from({ length: 50 }, () => ({ id: 5, name: ''.repeat(99), points: NaN, color: 'red' })), ready: 5 });
+  assert.equal(v.index, 0);
+  assert.ok(v.count <= 15);
+  assert.equal(v.phase, 'racing');
+  assert.ok(v.table.length <= MAX_RACERS);
+  for (const r of v.table) {
+    assert.equal(typeof r.id, 'string');
+    assert.ok(Number.isFinite(r.points) && Number.isFinite(r.time));
+    assert.ok(KART_COLORS.includes(r.color));
+    assert.ok(!/[ -]/.test(r.name));
+  }
+  assert.deepEqual(v.ready, []);
 });

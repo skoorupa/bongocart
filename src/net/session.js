@@ -7,15 +7,25 @@
 // a od klientów przyjmuje tylko profil (imię, kolor) i sterowanie.
 // =====================================================================
 import { createLobby, addPlayer, updatePlayer, removePlayer, HOST_ID } from './lobby.js';
-import { createInputQueue, makeSnapshot } from './protocol.js';
+import { createInputQueue, makeSnapshot, sanitizeTourneyView } from './protocol.js';
 import { GAME_VERSION } from '../config.js';
 
 // room: {settings, seed} — ustawienia i efektywny seed toru (podgląd w lobby).
-export function createHostSession({ send, broadcast, disconnect, profile, room, onChange }) {
+// onAllReady: między mapami turnieju wszyscy ludzie są gotowi (main.js
+// startuje następną mapę).
+export function createHostSession({ send, broadcast, disconnect, profile, room, onChange, onAllReady }) {
   const lobby = createLobby(profile);
   const players = new Map(); // peerId -> id gracza
   const queues = new Map(); // id gracza -> kolejka sterowania
   let racers = null; // Set id ludzi w bieżącym wyścigu (null = lobby)
+  let tournament = null; // turniej (tournament.js) albo null
+
+  const sendTourney = () => { if (tournament) broadcast({ t: 'tourney', ...tournament.view() }); };
+  // Gotowość zmieniła się (ready / wyjście): rozgłoś i ewentualnie ruszaj.
+  const readyChanged = () => {
+    sendTourney();
+    if (tournament?.phase === 'between' && tournament.allReady()) onAllReady?.();
+  };
 
   const lobbyMsg = () => ({ t: 'lobby', lobby, room, racing: racers !== null });
   const changed = () => {
@@ -53,6 +63,8 @@ export function createHostSession({ send, broadcast, disconnect, profile, room, 
         changed();
       } else if (msg.t === 'input' && id && racers?.has(id)) {
         queues.get(id).push(msg);
+      } else if (msg.t === 'ready' && id && tournament?.setReady(id)) {
+        readyChanged();
       }
     },
 
@@ -64,8 +76,18 @@ export function createHostSession({ send, broadcast, disconnect, profile, room, 
       queues.delete(id);
       removePlayer(lobby, id);
       changed();
+      if (tournament?.roster.some((r) => r.id === id)) {
+        tournament.markLeft(id);
+        readyChanged();
+      }
       return id;
     },
+
+    // Turniej prowadzony przez main.js (null = brak turnieju).
+    setTournament(t) { tournament = t; },
+    sendTourney,
+    // Gotowość lokalnego gracza hosta.
+    setReady(id) { if (tournament?.setReady(id)) readyChanged(); },
 
     setRoom(next) {
       room = next;
@@ -114,10 +136,16 @@ export function createClientSession({ send, profile, on }) {
     handleOpen() { send({ t: 'hello', profile, version: GAME_VERSION }); },
     handleMessage(msg) {
       if (!msg || typeof msg !== 'object') return;
+      if (msg.t === 'tourney') {
+        const view = sanitizeTourneyView(msg);
+        if (view) on.tourney?.(view);
+        return;
+      }
       const handler = { welcome: on.welcome, lobby: on.lobby, start: on.start, snap: on.snapshot, abort: on.abort, reject: on.reject }[msg.t];
       handler?.(msg);
     },
     setProfile(p) { send({ t: 'profile', profile: p }); },
     sendInput(msg) { if (msg) send(msg); },
+    sendReady() { send({ t: 'ready' }); },
   };
 }

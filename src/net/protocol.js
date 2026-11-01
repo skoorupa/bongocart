@@ -7,7 +7,8 @@
 //   host -> klient: welcome {id}, reject {reason: full|version}, lobby {lobby},
 //                   start {...}, snap {...}, abort, ping
 // =====================================================================
-import { NET } from '../config.js';
+import { NET, MAX_RACERS, KART_COLORS, SETTINGS_SCHEMA } from '../config.js';
+import { sanitizeName } from './lobby.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const num = (v, a, b) => (Number.isFinite(v) ? clamp(v, a, b) : 0);
@@ -131,4 +132,32 @@ export function applyRaceAndItems(game, snap) {
     const [item, roll] = snap.items.slots[i];
     Object.assign(items.slots.get(r.id), { item, roll });
   });
+}
+
+// --- Widok turnieju od hosta (wiadomość "tourney"): niezaufany, więc
+// przycinamy typy i rozmiary. null = nie da się użyć.
+const TOURNEY_PHASES = ['racing', 'between', 'done'];
+const MAX_MAPS = SETTINGS_SCHEMA.find((e) => e.key === 'mapCount').max;
+const MAX_SECONDS = 1e6; // [s] górna granica łącznego czasu (ochrona przed śmieciami)
+
+export function sanitizeTourneyView(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const int = (v, a, b) => Math.round(num(v, a, b));
+  const table = (Array.isArray(raw.table) ? raw.table : []).slice(0, MAX_RACERS).map((r) => ({
+    id: String(r?.id ?? ''),
+    name: sanitizeName(r?.name, 'Gracz'),
+    color: KART_COLORS.includes(r?.color) ? r.color : KART_COLORS[0],
+    isHuman: !!r?.isHuman,
+    points: int(r?.points, 0, MAX_MAPS * 100),
+    time: num(r?.time, 0, MAX_SECONDS),
+    lastPoints: int(r?.lastPoints, 0, 100),
+    left: !!r?.left,
+  }));
+  return {
+    index: int(raw.index, 0, MAX_MAPS - 1),
+    count: int(raw.count, 1, MAX_MAPS),
+    phase: TOURNEY_PHASES.includes(raw.phase) ? raw.phase : 'racing',
+    table,
+    ready: (Array.isArray(raw.ready) ? raw.ready : []).slice(0, MAX_RACERS).map(String),
+  };
 }
