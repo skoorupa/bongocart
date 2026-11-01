@@ -36,8 +36,10 @@ export function buildRoster(settings, humans) {
 }
 
 // humans: [{id, name, color}]; seed: do losowości botów (deterministyczna).
-export function createGame({ track, settings, humans, seed }) {
-  const roster = buildRoster(settings, humans);
+// roster (opcjonalnie): zamrożony skład turnieju [{id, name, color, isHuman}]
+// — wtedy humans/minRacers nie decydują o składzie.
+export function createGame({ track, settings, humans, seed, roster: fixed = null }) {
+  const roster = fixed ? fixed.map((r) => ({ ...r })) : buildRoster(settings, humans);
   const race = createRace({ track, laps: settings.laps, racers: roster });
   const stats = kartStats(settings.speedClass);
   const karts = new Map(roster.map((r, slot) => [r.id, createKartState(track, slot)]));

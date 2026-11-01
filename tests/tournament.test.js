@@ -2,7 +2,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createTournament, mapSeedOf } from '../src/tournament.js';
-import { TOURNAMENT } from '../src/config.js';
+import { TOURNAMENT, PHYSICS } from '../src/config.js';
+import { createGame, buildRoster } from '../src/game.js';
+import { generateTrack } from '../src/track/generator.js';
+import { defaultSettings } from '../src/settings.js';
 
 const H = (id) => ({ id, name: id, color: 0xe63946, isHuman: true });
 const B = (id) => ({ id, name: id, color: 0x1e88e5, isHuman: false });
@@ -81,4 +84,37 @@ test('więcej zawodników niż punktowanych miejsc: reszta 0 pkt', () => {
   const t = createTournament({ seed: 's', mapCount: 2, roster });
   t.recordRace(race(70, roster.map((r, i) => [r.id, 50 + i])));
   assert.equal(t.table().at(-1).points, 0);
+});
+
+// --- Turniej z prawdziwymi wyścigami botów.
+const DT = PHYSICS.fixedDt;
+const settings = { ...defaultSettings(), minRacers: 4, laps: 1 };
+const trackOf = (seed) => generateTrack({ seed, size: 'small', difficulty: 'easy', theme: 'random', itemFrequency: 'none' });
+const runToEnd = (game, inputs = new Map()) => {
+  for (let i = 0; i < 120 / DT && game.race.phase !== 'finished'; i++) game.step(DT, inputs);
+};
+
+test('pełny turniej botów: 3 mapy, tabela sumuje rozdane punkty', () => {
+  const t = createTournament({ seed: 'tour', mapCount: 3, roster: buildRoster(settings, []) });
+  for (let i = 0; i < 3; i++) {
+    const game = createGame({ track: trackOf(t.mapSeed(i)), settings, humans: [], seed: `g${i}`, roster: t.roster });
+    assert.deepEqual(game.race.racers.map((r) => r.id), t.roster.map((r) => r.id));
+    runToEnd(game);
+    assert.equal(game.race.phase, 'finished');
+    t.recordRace(game.race);
+    if (i < 2) t.nextMap();
+  }
+  assert.equal(t.phase, 'done');
+  const total = t.table().reduce((sum, r) => sum + r.points, 0);
+  assert.equal(total, 3 * TOURNAMENT.points.slice(0, 4).reduce((a, b) => a + b, 0));
+});
+
+test('createGame z rosterem: człowiek, który wyszedł, jedzie botem', () => {
+  const roster = [{ id: 'p1', name: 'Ola', color: 0xe63946, isHuman: true }, ...buildRoster({ ...settings, minRacers: 2 }, [])];
+  const game = createGame({ track: trackOf('left'), settings, humans: [], seed: 'x', roster });
+  assert.deepEqual(game.roster.map((r) => r.id), roster.map((r) => r.id));
+  game.takeOver('p1');
+  for (let i = 0; i < 6 / DT; i++) game.step(DT, new Map());
+  assert.ok(game.karts.get('p1').speed > 5, `${game.karts.get('p1').speed}`);
+  assert.equal(game.race.racers.find((r) => r.id === 'p1').takenOver, true);
 });
