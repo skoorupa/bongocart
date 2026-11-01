@@ -79,12 +79,13 @@ const follow = (k, track) => {
 
 // Pętla wyścigu: host liczy grę, klienci przewidują i interpolują.
 // hooks.beforeSnapshot(c, snap) — podgląd stanu przed wczytaniem u klienta.
-function runRace(env, { seconds, hooks = {} }) {
+function runRace(env, { seconds, hooks = {}, onGame }) {
   const { net, host, clients, room } = env;
   const humans = host.lobby.players.map((p) => ({ id: p.id, name: p.name, color: p.color }));
   const start = { settings: room.settings, seed: room.seed, gameSeed: 'g', humans };
   const game = createGame({ track: generateTrack(trackParamsFromSettings(room.settings, room.seed)), settings: room.settings, humans, seed: start.gameSeed });
   host.startRace(start);
+  onGame?.(game);
   let tick = 0;
   const pending = [];
   for (let step = 0; step < seconds / DT; step++) {
@@ -105,7 +106,7 @@ function runRace(env, { seconds, hooks = {} }) {
       c.session.sendInput(c.sim.takeOutgoing());
       c.sim.updateRemote(DT);
     }
-    const events = game.step(DT, host.remoteInputs(game, new Map()));
+    const events = [...(hooks.extraEvents?.() ?? []), ...game.step(DT, host.remoteInputs(game, new Map()))];
     pending.push(...events);
     if (++tick % NET.snapshotEverySteps === 0) host.sendSnapshot(game, tick * DT, pending.splice(0));
     hooks.afterHostStep?.(game);
@@ -220,4 +221,32 @@ test('pełny wyścig przez sieć: klient dojeżdża, inne karty interpolowane bl
   // Opóźnienie widoku = łącze + bufor interpolacji + odstęp stanów; przy ~37 m/s to kilka metrów.
   const lag = 0.04 + NET.interpDelaySeconds + NET.snapshotEverySteps * DT;
   assert.ok(maxGap < 40 * lag + 1, `rozjazd bota ${maxGap} m`);
+});
+
+test('klient rozłącza się w wyścigu: bot przejmuje kart, reszta to widzi', () => {
+  const env = setupRoom({ clients: 2, latency: 0.04, settings: { minRacers: 1, laps: 1 } });
+  const [c1, c2] = env.clients;
+  let hostGame, dropped = false, queued = [];
+  const seen = [];
+  const game = runRace(env, {
+    seconds: 70,
+    onGame: (g) => { hostGame = g; },
+    hooks: {
+      extraEvents: () => queued.splice(0),
+      afterHostStep(g) {
+        if (!dropped && g.race.time > 5) {
+          dropped = true;
+          const id = env.host.handleLeave(c2.peer); // jak w main.js: onLeave -> takeOver
+          queued.push(hostGame.takeOver(id));
+          c2.sim = null; // klient zniknął
+        }
+      },
+      beforeSnapshot(cl, snap) { if (cl === c1) seen.push(...snap.events.filter((e) => e.type === 'takeover')); },
+    },
+  });
+  const r2 = game.race.racers.find((r) => r.id === c2.id);
+  assert.ok(r2.takenOver);
+  assert.notEqual(r2.finishTime, null, 'bot dowiózł kart do mety');
+  assert.deepEqual(seen.map((e) => e.id), [c2.id]);
+  assert.ok(c1.game.race.racers.find((r) => r.id === c2.id).takenOver, 'klient wie o przejęciu');
 });

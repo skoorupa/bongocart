@@ -94,7 +94,7 @@ export function applyKart(k, a) {
 }
 
 // --- Snapshot: wszystko, czego klient potrzebuje do rysowania i HUD.
-const RACER_FIELDS = ['started', 'lap', 'nextCp', 'lapStartTime', 'lapTimes', 'bestLap', 'finishTime', 'progress', 'wrongWayTime'];
+const RACER_FIELDS = ['isHuman', 'takenOver', 'started', 'lap', 'nextCp', 'lapStartTime', 'lapTimes', 'bestLap', 'finishTime', 'progress', 'wrongWayTime'];
 
 // ht: czas symulacji hosta [s] (do interpolacji), acks: {id: seq}.
 export function makeSnapshot(game, ht, acks, events) {

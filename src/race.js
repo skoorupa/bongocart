@@ -35,6 +35,7 @@ export function createRace({ track, laps, racers }) {
       finishTime: null, // null = jeszcze jedzie / nie ukończył (DNF)
       progress: 0, // [m] dystans od startu (do kolejności)
       wrongWayTime: 0,
+      takenOver: false, // rozłączony gracz, jedzie za niego AI
     })),
   };
 }

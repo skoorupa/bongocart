@@ -57,6 +57,7 @@ export function createHud() {
           el.countdown.textContent = 'START!';
           el.countdown.dataset.go = '1';
         }
+        if (e.type === 'takeover') banner(`${e.name} rozłączył(a) się — jedzie bot`, RACE.bannerSeconds);
         if (e.id !== localId) continue;
         if (e.type === 'finalLap') banner('OSTATNIE OKRĄŻENIE!', RACE.bannerSeconds, 'final');
         if (e.type === 'lap' && e.lap < race.laps) banner(`Okrążenie ${formatTime(e.time)}${e.best ? ' · najlepsze!' : ''}`);
@@ -121,7 +122,7 @@ export function createHud() {
         if (r.id === localId) tr.className = 'me';
         const cells = [
           `${i + 1}.`,
-          r.name,
+          r.takenOver ? `${r.name} 🤖` : r.name,
           finishLabel(race, r),
           formatTime(r.bestLap),
         ];

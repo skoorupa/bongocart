@@ -214,7 +214,15 @@ function createRoom() {
       refreshLobby();
     },
     onJoin() { /* czekamy na "hello" z profilem */ },
-    onLeave(peer) { host?.handleLeave(peer); },
+    onLeave(peer) {
+      const id = host?.handleLeave(peer);
+      // W trakcie wyścigu kart rozłączonego gracza przejmuje bot (etap 7).
+      const e = id && inRace ? game.takeOver(id) : null;
+      if (e) {
+        pendingEvents.push(e);
+        handleEvents([e]);
+      }
+    },
     onMessage(peer, msg) { host?.handleMessage(peer, msg); },
     onError(type) { leaveRoom(`Błąd sieci (${type}).`); },
   });

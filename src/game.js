@@ -7,6 +7,7 @@
 //   odliczanie                        -> nikt (stoi)
 //   człowiek w trakcie jazdy          -> jego sterowanie (inputs)
 //   bot / człowiek po mecie / koniec  -> kierowca AI
+//   rozłączony gracz (takeOver)       -> kierowca AI do końca wyścigu
 // =====================================================================
 import { AI, BOT_NAMES, KART_COLORS, MAX_RACERS } from './config.js';
 import { createKartState, stepKart, kartStats, resetKartToTrack, collideKarts } from './physics.js';
@@ -62,6 +63,16 @@ export function createGame({ track, settings, humans, seed }) {
     karts,
     stats,
     items,
+
+    // Gracz się rozłączył: jego kart przejmuje AI (poziom botów z ustawień),
+    // a wyścig przestaje na niego czekać. Zwraca zdarzenie albo null.
+    takeOver(id) {
+      const r = race.racers.find((x) => x.id === id);
+      if (!r || !r.isHuman) return null;
+      r.isHuman = false;
+      r.takenOver = true;
+      return { type: 'takeover', id, name: r.name };
+    },
 
     // inputs: Map id -> sterowanie człowieka (z input.js / z sieci).
     // Zwraca zdarzenia wyścigu (patrz race.js).

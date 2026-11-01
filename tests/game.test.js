@@ -107,3 +107,18 @@ test('determinizm: ten sam seed -> te same pozycje', () => {
   };
   assert.deepEqual(run(), run());
 });
+
+test('rozłączony gracz: kart przejmuje AI, wyścig na niego nie czeka', () => {
+  const game = createGame({ track, settings: settingsWith({ minRacers: 1, laps: 1 }), humans: [human('a'), human('b', 0x1e88e5)], seed: 't' });
+  runUntil(game, () => game.race.time > 2, 10);
+  const b = game.karts.get('b');
+  const e = game.takeOver('b');
+  assert.deepEqual(e, { type: 'takeover', id: 'b', name: 'b' });
+  assert.equal(game.takeOver('b'), null); // drugi raz nic
+  // "a" stoi (brak sterowania), "b" jedzie sam i kończy wyścig.
+  runUntil(game, () => game.race.racers.find((r) => r.id === 'b').finishTime !== null, 120);
+  const rb = game.race.racers.find((r) => r.id === 'b');
+  assert.notEqual(rb.finishTime, null, `b przejechał ${b.trackS} m`);
+  assert.ok(rb.takenOver && !rb.isHuman);
+  assert.equal(game.race.phase, 'racing'); // czeka na człowieka "a" (albo limit czasu)
+});
