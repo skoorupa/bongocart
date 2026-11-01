@@ -371,6 +371,7 @@ export const RACE = {
   resultsDelaySeconds: 2.5, // od końca wyścigu do tabeli wyników
   bannerSeconds: 2.5, // komunikaty: ostatnie okrążenie, czas okrążenia
   hitBannerSeconds: 1.2, // komunikat o trafieniu
+  leaderboardRefreshSeconds: 0.2, // tabela pozycji: odświeżanie (oszczędza DOM)
   wrongWay: {
     dot: -0.3, // cos kąta między kursem a kierunkiem toru
     minSpeed: 3, // [m/s] poniżej nie ostrzegamy (manewrowanie)
@@ -380,7 +381,7 @@ export const RACE = {
 
 // Wersja gry: klient z inną wersją niż host nie dołączy (inny protokół
 // albo fizyka). Zmieniaj przy każdym wdrożeniu, które zmienia grę.
-export const GAME_VERSION = '0.8.0';
+export const GAME_VERSION = '0.9.0';
 
 // ---------------------------------------------------------------------
 // Dźwięk (Web Audio, generowany). Głośności 0..1, częstotliwości [Hz].
@@ -390,11 +391,22 @@ export const AUDIO = {
   masterVolume: 0.6,
   sfxVolume: 0.25,
   attack: 0.01, // [s] narastanie dźwięków
+  // Silnik jednocylindrowy: obroty z biegami (spadek przy zmianie biegu),
+  // "pykanie" = modulacja głośności z częstotliwością zapłonów, harmoniczne
+  // przez miękkie przesterowanie, chrapliwy wydech = szum pasmowy.
   engine: {
-    idleHz: 55, rangeHz: 110, boostHz: 30, subRatio: 0.5,
-    filterHz: 500, filterRangeHz: 1400,
-    volume: 0.12, idleLevel: 0.35, throttleLevel: 0.6,
-    smoothing: 0.08, // [s] stała czasowa zmian
+    gears: 4,
+    shiftDropRpm: 0.35, // obroty po zmianie biegu (ułamek zakresu)
+    idleHz: 32, rangeHz: 150, // częstotliwość podstawowa: bieg jałowy + zakres
+    boostRpm: 0.12, // turbo podbija obroty
+    revInPlace: 0.55, // gaz w miejscu: maks. obroty
+    pulseDepth: 0.45, // głębokość "pykania" 0..1
+    drive: 2.5, // przesterowanie (więcej = ostrzej)
+    filterHz: 250, filterRpmHz: 1800, filterThrottleHz: 900,
+    raspVolume: 0.25, raspHarmonic: 4, raspQ: 2.5, // szum wydechu
+    volume: 0.11, offThrottleLevel: 0.55, idleLevel: 0.5,
+    rpmSmoothing: 0.05, // [s] — szybko, żeby było słychać zmianę biegu
+    toneSmoothing: 0.08,
   },
   drift: { q: 6, baseHz: 1800, levelHz: 500, volume: 0.06, smoothing: 0.05 },
   wallMinSpeed: 3, // [m/s] słabsze stuknięcia bez dźwięku

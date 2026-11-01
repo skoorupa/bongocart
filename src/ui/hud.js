@@ -4,7 +4,7 @@
 // Tylko wyświetla stan z race.js — żadnej logiki wyścigu tutaj.
 // =====================================================================
 import { ITEMS, RACE } from '../config.js';
-import { displayLap, estimatedFinish, formatTime, showWrongWay, standings } from '../race.js';
+import { displayLap, estimatedFinish, formatTime, gapToLeader, showWrongWay, standings } from '../race.js';
 
 const $ = (id) => document.getElementById(id);
 const hex = (c) => `#${c.toString(16).padStart(6, '0')}`;
@@ -16,13 +16,36 @@ function finishLabel(race, r) {
   return est === null ? 'nie ukończył' : `~${formatTime(est)}`;
 }
 
+// Tabela pozycji na żywo: miejsce, kolor, nick, strata do lidera.
+function renderBoard(race, localId) {
+  const order = standings(race);
+  const rows = order.map((r, i) => {
+    const li = document.createElement('li');
+    if (r.id === localId) li.className = 'me';
+    const pos = Object.assign(document.createElement('span'), { className: 'pos', textContent: `${i + 1}.` });
+    const dot = Object.assign(document.createElement('span'), { className: 'dot' });
+    dot.style.background = hex(r.color);
+    const name = Object.assign(document.createElement('span'), { className: 'name', textContent: r.takenOver ? `${r.name} 🤖` : r.name });
+    const gap = race.time > 0 ? gapToLeader(race, order, r) : null; // w odliczaniu bez strat
+    const g = Object.assign(document.createElement('span'), {
+      className: 'gap',
+      textContent: r.finishTime !== null && i === 0 ? '🏁' : gap === null ? '' : `+${gap.toFixed(1)}s`,
+    });
+    li.append(pos, dot, name, g);
+    return li;
+  });
+  document.getElementById('leaderboard').replaceChildren(...rows);
+}
+
 export function createHud() {
   const el = {
     root: $('hud'), lap: $('hudLap'), total: $('hudTotal'), lapTime: $('hudLapTime'), best: $('hudBest'),
     pos: $('hudPos'), posOf: $('hudPosOf'), countdown: $('countdown'), banner: $('banner'),
     wrongWay: $('wrongWay'), results: $('results'), resultsBody: $('resultsBody'),
     item: $('itemSlot'),
+    board: $('leaderboard'),
   };
+  let boardIn = 0;
   let shownIcon = null;
   let bannerLeft = 0;
   let lastCount = null;
@@ -68,6 +91,11 @@ export function createHud() {
     },
 
     update(race, localId, dt, items) {
+      boardIn -= dt;
+      if (boardIn <= 0) {
+        boardIn = RACE.leaderboardRefreshSeconds;
+        renderBoard(race, localId);
+      }
       const me = race.racers.find((r) => r.id === localId);
       const order = standings(race);
       const place = order.indexOf(me) + 1;

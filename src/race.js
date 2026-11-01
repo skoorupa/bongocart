@@ -149,6 +149,17 @@ export function estimatedFinish(race, r) {
   return (race.time * race.laps * race.track.length) / r.progress;
 }
 
+// Strata do lidera [s]: ukończeni — różnica czasów mety; w trasie —
+// różnica dystansu przez średnie tempo lidera. null = to jest lider.
+export function gapToLeader(race, order, r) {
+  const leader = order[0];
+  if (r === leader) return null;
+  if (r.finishTime !== null) return r.finishTime - leader.finishTime;
+  const pace = race.time > 0 ? Math.max(leader.progress, 1) / race.time : 1; // [m/s]
+  const leaderDist = leader.finishTime !== null ? race.laps * race.track.length : leader.progress;
+  return Math.max(0, (leaderDist - r.progress) / pace);
+}
+
 // 83.456 -> "1:23.45"
 export function formatTime(seconds) {
   if (seconds === null || seconds === undefined) return '—';

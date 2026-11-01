@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateTrack } from '../src/track/generator.js';
-import { createRace, updateRace, standings, formatTime, showWrongWay } from '../src/race.js';
+import { createRace, updateRace, standings, formatTime, showWrongWay, gapToLeader } from '../src/race.js';
 import { createKartState, stepKart, kartStats } from '../src/physics.js';
 import { RACE, PHYSICS, TRACK } from '../src/config.js';
 
@@ -159,4 +159,22 @@ test('formatTime', () => {
   assert.equal(formatTime(83.456), '1:23.45');
   assert.equal(formatTime(5), '0:05.00');
   assert.equal(formatTime(null), '—');
+});
+
+test('strata do lidera: lider null, dalej proporcjonalnie do dystansu; ukończeni wg czasu mety', () => {
+  const race = newRace(1, ['a', 'b', 'c']);
+  const karts = new Map([['a', synthetic(L - 8)], ['b', synthetic(L - 10)], ['c', synthetic(L - 12)]]);
+  toGo(race, karts);
+  drive(race, karts, 'a', 300);
+  drive(race, karts, 'b', 200);
+  drive(race, karts, 'c', 100);
+  let order = standings(race);
+  const [ga, gb, gc] = order.map((r) => gapToLeader(race, order, r));
+  assert.equal(ga, null);
+  assert.ok(gb > 0 && gc > gb * 1.5, `${gb} ${gc}`);
+  drive(race, karts, 'a', L); // a na mecie
+  drive(race, karts, 'b', L);
+  order = standings(race);
+  const b = race.racers.find((r) => r.id === 'b'), a = race.racers.find((r) => r.id === 'a');
+  assert.ok(Math.abs(gapToLeader(race, order, b) - (b.finishTime - a.finishTime)) < 1e-9);
 });
