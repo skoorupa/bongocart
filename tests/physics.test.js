@@ -235,3 +235,19 @@ test('próg nie reaguje na przejazd przez linię mety', () => {
   assert.ok(k.trackS < 40, `trackS ${k.trackS}`);
   assert.ok(Math.max(...d) < 0.5, `spadek ${Math.max(...d)}`);
 });
+
+test('czołowe uderzenie w środek słupka nie zatrzymuje karta, kara tylko raz', () => {
+  const post = postAt(2 + Math.round(8 / metersPerIdx), 0);
+  const t = withObstacles([post]);
+  const k = placed(t, 2, 0, 36);
+  const speeds = drive(t, k, idle, 1.5);
+  const minD = KART.radius + post.radius;
+  assert.ok(Math.hypot(k.x - post.x, k.z - post.z) >= minD - 1e-6);
+  const d = drops(speeds);
+  const big = d.map((x, i) => [x, i]).filter(([x]) => x > 1);
+  assert.equal(big.length, 1, JSON.stringify(big));
+  const before = speeds[big[0][1]], after = speeds[big[0][1] + 1];
+  assert.ok(Math.abs(after / before - OBSTACLES.post.speedKeep) < 0.02, `${before} -> ${after}`);
+  assert.ok(Math.min(...speeds) > 10, `min ${Math.min(...speeds)}`);
+  assert.ok(k.trackS > post.s + 2, `utknął: ${k.trackS} vs ${post.s}`);
+});

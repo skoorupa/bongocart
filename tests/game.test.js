@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateTrack } from '../src/track/generator.js';
 import { createGame, buildRoster } from '../src/game.js';
+import { createDriver } from '../src/ai.js';
+import { kartStats } from '../src/physics.js';
 import { defaultSettings } from '../src/settings.js';
 import { collideKarts, createKartState } from '../src/physics.js';
 import { PHYSICS, MAX_RACERS, KART, RACE, TRACK, AI, OBSTACLES } from '../src/config.js';
@@ -150,6 +152,23 @@ test('boty kończą wyścig z gęstymi przeszkodami, omijają słupki i się nie
   assert.ok(res.times.every((x) => x !== null), JSON.stringify(res.times));
   assert.ok(Math.min(...res.times) <= Math.min(...base.times) * 1.08, `${Math.min(...res.times)} vs ${Math.min(...base.times)}`);
   assert.ok(res.maxSlow <= AI.stuck.time, `stał ${res.maxSlow} s`);
-  // Deterministyczne: bez omijania w ai.js boty trafiają tu 3 razy, z omijaniem 1.
-  assert.ok(res.hits <= 1, `uderzeń w słupki: ${res.hits} (słupków ${obs.posts.length})`);
+  // Deterministyczne: bez omijania w ai.js (lub ze słupkami sprawdzanymi
+  // po kartach) boty trafiają tu 4 razy, z omijaniem 2.
+  assert.ok(res.hits <= 2, `uderzeń w słupki: ${res.hits} (słupków ${obs.posts.length})`);
+});
+
+test('bot omijający wolny kart nie skręca w słupek', () => {
+  // Prosta startowa: słupek z przodu po prawej, wolny kart z przodu lekko po lewej.
+  const p0 = track.points[0], n = track.points.length;
+  const at = (m, lat) => { const p = track.points[Math.round(m / track.step) % n]; return { x: p.x + p.nx * lat, z: p.z + p.nz * lat }; };
+  const kart = createKartState(track, 0);
+  Object.assign(kart, at(0, 0), { heading: p0.heading, speed: 20, vx: Math.sin(p0.heading) * 20, vz: Math.cos(p0.heading) * 20 });
+  const other = { ...createKartState(track, 1), ...at(6, -0.5), speed: 5 };
+  const post = { ...at(9, 1.5), radius: OBSTACLES.post.radius };
+  const driver = createDriver(track, 'medium', 1);
+  let out;
+  for (let i = 0; i < Math.round(0.5 / DT); i++) {
+    out = driver.control(kart, { others: [other], stats: kartStats('150cc'), speedMul: 1, slot: null, hazards: [], obstacles: [post], gapAhead: null, gapBehind: null }, DT);
+  }
+  assert.ok(out.steer < 0, `steer ${out.steer} (+ = w prawo, w słupek)`);
 });

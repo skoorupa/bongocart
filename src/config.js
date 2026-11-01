@@ -297,6 +297,7 @@ export const OBSTACLES = {
     maxBlockFraction: 0.35, // słupek najdalej tyle szerokości jezdni od krawędzi
     speedKeep: 0.7, // mnożnik prędkości po uderzeniu (kart ześlizguje się po słupku)
     hitMinSpeed: 2, // [m/s] poniżej: tylko otarcie, bez kary
+    contactSlop: 0.05, // [m] luz: kart tuż przy słupku (po wypchnięciu) nadal "w kontakcie"
   },
   bump: {
     widthFraction: 0.5, // część szerokości jezdni od krawędzi

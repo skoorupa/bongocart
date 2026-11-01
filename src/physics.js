@@ -129,6 +129,7 @@ export function stepKart(kart, input, track, stats, dt) {
   const nfx = Math.sin(kart.heading), nfz = Math.cos(kart.heading);
   kart.vx = nfx * fwd + -nfz * lat;
   kart.vz = nfz * fwd + nfx * lat;
+  const prevX = kart.x, prevZ = kart.z;
   kart.x += kart.vx * dt;
   kart.z += kart.vz * dt;
   kart.speed = fwd;
@@ -136,40 +137,39 @@ export function stepKart(kart, input, track, stats, dt) {
   const prevS = kart.trackS;
   collideWithTrack(kart, track);
   kart.bumpTime = Math.max(0, kart.bumpTime - dt);
-  collideObstacles(kart, track, prevS);
+  collideObstacles(kart, track, prevS, prevX, prevZ);
 }
 
-// Przeszkody z toru: słupki (twarde, lekko spowalniają) i progi (ucinają
-// prędkość raz na przejazd). prevS = metr toru przed tym krokiem.
-function collideObstacles(kart, track, prevS) {
+// Przeszkody z toru: słupki (kart przeciska się obok, raz traci prędkość)
+// i progi (ucinają prędkość raz na przejazd). prevS/prevX/prevZ = stan
+// sprzed ruchu w tym kroku (bez dodatkowych pól — działa też przy powtórce
+// kroków u klienta).
+function collideObstacles(kart, track, prevS, prevX, prevZ) {
   const P = OBSTACLES.post, B = OBSTACLES.bump;
+  const fx = Math.sin(kart.heading), fz = Math.cos(kart.heading);
+  const rx = -fz, rz = fx; // w prawo od kierowcy
   for (const o of track.posts ?? []) {
-    const dx = kart.x - o.x, dz = kart.z - o.z;
     const minD = KART.radius + o.radius;
-    const d2 = dx * dx + dz * dz;
-    if (d2 >= minD * minD) continue;
-    const d = Math.sqrt(d2) || 1e-6;
-    const nx = d2 ? dx / d : 1, nz = d2 ? dz / d : 0; // od słupka do karta
-    kart.x = o.x + nx * minD;
-    kart.z = o.z + nz * minD;
-    const vn = -(kart.vx * nx + kart.vz * nz); // prędkość w stronę słupka
-    if (vn <= 0) continue;
-    if (vn <= P.hitMinSpeed) {
-      // Otarcie: tylko zdejmujemy składową w stronę słupka.
-      kart.vx += nx * vn;
-      kart.vz += nz * vn;
-    } else {
-      // Uderzenie: kart ześlizguje się po słupku — prędkość idzie wzdłuż
-      // stycznej (tej bliższej kursowi), z utratą P.speedKeep. Bez odbicia
-      // do tyłu, więc kart nigdy nie staje w miejscu.
-      const fx = Math.sin(kart.heading), fz = Math.cos(kart.heading);
-      const sgn = -nz * fx + nx * fz >= 0 ? 1 : -1;
-      const v = Math.hypot(kart.vx, kart.vz) * P.speedKeep;
-      kart.vx = -nz * sgn * v;
-      kart.vz = nx * sgn * v;
-      kart.wallHit = Math.max(kart.wallHit, vn);
-    }
-    kart.speed = kart.vx * Math.sin(kart.heading) + kart.vz * Math.cos(kart.heading);
+    const dx = kart.x - o.x, dz = kart.z - o.z;
+    if (dx * dx + dz * dz >= minD * minD) continue;
+    // Wypychamy kart w bok (w układzie karta), nie do tyłu: postęp wzdłuż
+    // kursu zostaje, więc kart nigdy nie staje na słupku. W sam środek ->
+    // w stronę środka toru.
+    const ahead = dx * fx + dz * fz;
+    const side = dx * rx + dz * rz;
+    const sgn = Math.abs(side) > 1e-6 ? Math.sign(side) : kart.lateral > 0 ? -1 : 1;
+    const shift = sgn * Math.sqrt(Math.max(0, minD * minD - ahead * ahead));
+    kart.x = o.x + fx * ahead + rx * shift;
+    kart.z = o.z + fz * ahead + rz * shift;
+    // Kara tylko na początku kontaktu i przy uderzeniu (nie przy otarciu).
+    const wasTouching = (prevX - o.x) ** 2 + (prevZ - o.z) ** 2 < (minD + P.contactSlop) ** 2;
+    const len = Math.hypot(dx, dz) || 1;
+    const vn = -(kart.vx * dx + kart.vz * dz) / len; // prędkość w stronę słupka
+    if (wasTouching || vn <= P.hitMinSpeed) continue;
+    kart.vx *= P.speedKeep;
+    kart.vz *= P.speedKeep;
+    kart.speed *= P.speedKeep;
+    kart.wallHit = Math.max(kart.wallHit, vn);
   }
 
   // Próg: metr toru karta przeszedł przez metr progu (w dowolną stronę).

@@ -53,10 +53,11 @@ export function createDriver(track, difficulty, seed) {
   }
 
   // Przesunięcie, żeby nie wjechać w kart przed sobą (+ = w prawo).
-  // Banany omija tylko bot z skill.dodge, słupki toru — każdy.
+  // Banany omija tylko bot z skill.dodge, słupki toru — każdy. Słupki
+  // sprawdzamy najpierw: unik przed kartem nie może wepchnąć w szykanę.
   function avoidance(kart, others, hazards, obstacles) {
     const fx = Math.sin(kart.heading), fz = Math.cos(kart.heading);
-    for (const o of [...others, ...(skill.dodge ? hazards : []), ...obstacles]) {
+    for (const o of [...obstacles, ...others, ...(skill.dodge ? hazards : [])]) {
       const dx = o.x - kart.x, dz = o.z - kart.z;
       const ahead = dx * fx + dz * fz;
       const side = dx * -fz + dz * fx;
