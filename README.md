@@ -29,6 +29,8 @@ Po zmianie gry podbij `GAME_VERSION` w `src/config.js` — gracz ze starą wersj
 3. Znajomi otwierają link albo wpisują kod → **Dołącz**.
 4. Host wybiera ustawienia (albo preset: Standard / Chaos / Czysty wyścig) i klika **Start**.
 
+Na torze mogą stać przeszkody (ustawienie „Przeszkody na torze”: Brak / Mało / Dużo): szykany z pachołków przy krawędzi — uderzenie zabiera ok. 30% prędkości — oraz progi zwalniające na pół szerokości toru (−15% przy szybkiej jeździe). Zawsze zostaje szeroki wolny przejazd.
+
 ## Sterowanie
 
 | Klawisz | Gamepad | Akcja |
@@ -53,6 +55,7 @@ Po zmianie gry podbij `GAME_VERSION` w `src/config.js` — gracz ze starą wersj
 | `src/race.js` | okrążenia, checkpointy, kolejność, meta |
 | `src/ai.js` | kierowca AI (boty, gracz po mecie, rozłączony gracz) |
 | `src/items.js` | skrzynki i przedmioty |
+| `src/track/obstacleMesh.js` | wygląd przeszkód (pachołki, progi); rozmieszczenie w generatorze, kolizje w fizyce |
 | `src/game.js` | symulacja całego wyścigu (liczy ją host) |
 | `src/net/*` | lobby, protokół, predykcja klienta, transport PeerJS |
 | `src/main.js` | wejście, rysowanie, UI |
