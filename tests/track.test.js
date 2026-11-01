@@ -2,10 +2,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateTrack, targetTrackLength, nearestOnTrack, gridSlot, OUTER_HALF } from '../src/track/generator.js';
-import { TRACK, KART } from '../src/config.js';
+import { TRACK, KART, OBSTACLES } from '../src/config.js';
 
 const params = (seed, size = 'medium', difficulty = 'medium') => ({ seed, size, difficulty, theme: 'random', itemFrequency: 'normal' });
-const strip = (t) => JSON.stringify({ p: t.points, r: t.racingLine, c: t.checkpoints, b: t.itemBoxes, d: t.decorations, th: t.themeId });
+const strip = (t) => JSON.stringify({ p: t.points, r: t.racingLine, c: t.checkpoints, b: t.itemBoxes, d: t.decorations, o: t.obstacles, th: t.themeId });
 
 test('ten sam seed daje identyczny tor', () => {
   for (const seed of ['abc', '123', 'k3x9pq']) {
@@ -107,4 +107,46 @@ test('tory nie są kołami: średni i trudny mają wyraźne wcięcia', () => {
   assert.ok(medium < 0.94, `średni ${medium}`);
   assert.ok(hard < 0.86, `trudny ${hard}`);
   assert.ok(hard < medium);
+});
+
+// --- Przeszkody (słupki, progi) ---
+const alongDist = (a, b, L) => { const d = Math.abs(a - b) % L; return Math.min(d, L - d); };
+
+test('przeszkody: none = brak, ten sam seed = te same przeszkody, nie zmieniają kształtu toru', () => {
+  assert.equal(generateTrack(params('obs')).obstacles.length, 0); // domyślnie brak
+  assert.equal(generateTrack({ ...params('obs'), obstacles: 'none' }).obstacles.length, 0);
+  const a = generateTrack({ ...params('obs'), obstacles: 'many' });
+  const b = generateTrack({ ...params('obs'), obstacles: 'many' });
+  assert.ok(a.obstacles.length > 0);
+  assert.equal(JSON.stringify(a.obstacles), JSON.stringify(b.obstacles));
+  assert.equal(JSON.stringify(a.points), JSON.stringify(generateTrack(params('obs')).points));
+});
+
+test('przeszkody leżą na jezdni, poza strefami i zostawiają wolny przejazd (wiele seedów)', () => {
+  const maxBlocked = TRACK.width * (1 - OBSTACLES.minFreeFraction);
+  const boxGap = OBSTACLES.boxClearance - (OBSTACLES.post.count[1] - 1) * OBSTACLES.post.spacing;
+  let withObstacles = 0, total = 0;
+  for (const size of Object.keys(TRACK.sizes)) {
+    for (let i = 0; i < 40; i++) {
+      const t = generateTrack({ seed: `obs${i}`, size, difficulty: 'hard', theme: 'random', itemFrequency: 'often', obstacles: 'many' });
+      total++;
+      if (t.obstacles.length) withObstacles++;
+      const posts = t.obstacles.filter((o) => o.type === 'post');
+      assert.equal(t.posts.length, posts.length);
+      for (const o of t.obstacles) {
+        const s = o.type === 'post' ? nearestOnTrack(t, o.x, o.z).s : o.s;
+        assert.ok(s >= OBSTACLES.afterStart && s <= t.length - OBSTACLES.beforeFinish, `${t.seed}: s=${s}`);
+        for (const b of t.itemBoxes) assert.ok(alongDist(s, t.points[b.index].s, t.length) >= boxGap, `${t.seed}: skrzynka`);
+        if (o.type === 'post') {
+          const lat = Math.abs(nearestOnTrack(t, o.x, o.z).lateral);
+          assert.ok(lat + o.radius <= t.halfWidth + 1e-6, `${t.seed}: słupek poza jezdnią`);
+          assert.ok(t.halfWidth - lat + o.radius <= maxBlocked + 1e-6, `${t.seed}: słupek zabiera za dużo`);
+        } else {
+          assert.ok(o.latFrom >= -t.halfWidth - 1e-6 && o.latTo <= t.halfWidth + 1e-6 && o.latFrom < o.latTo);
+          assert.ok(o.latTo - o.latFrom <= maxBlocked + 1e-6, `${t.seed}: próg za szeroki`);
+        }
+      }
+    }
+  }
+  assert.ok(withObstacles > total * 0.8, `${withObstacles}/${total}`);
 });

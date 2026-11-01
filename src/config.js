@@ -269,6 +269,47 @@ export const RENDER = {
 };
 
 // ---------------------------------------------------------------------
+// Przeszkody na torze (urozmaicenie, lekka kara). Rozmieszczenie liczy
+// generator toru, kolizje physics.js, wygląd track/obstacleMesh.js.
+// ---------------------------------------------------------------------
+export const OBSTACLES = {
+  densities: {
+    none: { label: 'Brak', spacing: 0 },
+    few: { label: 'Mało', spacing: 220 }, // [m] między kolejnymi przeszkodami
+    many: { label: 'Dużo', spacing: 110 },
+  },
+  jitter: 0.25, // losowe przesunięcie (× spacing)
+  searchStep: 4, // [m] krok szukania dozwolonego miejsca, gdy wylosowane jest zajęte
+  searchFraction: 0.5, // szukamy najdalej tyle × spacing do przodu
+  afterStart: 60, // [m] brak przeszkód tuż za startem
+  beforeFinish: 40, // [m] i tuż przed metą
+  boxClearance: 25, // [m] odstęp od rzędu skrzynek (wzdłuż toru)
+  cornerWindow: 20, // [m] okno (±) sprawdzania zakrętu wokół przeszkody
+  minCornerRadius: 45, // [m] przeszkody tylko na prostych i łagodnych łukach
+  bumpChance: 0.4, // szansa, że przeszkoda to próg (reszta: szykana)
+  minFreeFraction: 0.6, // wolny przejazd: min. część szerokości jezdni
+  edgeMargin: 0.6, // [m] słupek od krawędzi jezdni
+  post: {
+    radius: 0.35, // [m] promień kolizji słupka
+    height: 0.9, // [m]
+    count: [2, 3], // słupków w szykanie (włącznie)
+    spacing: 6, // [m] między słupkami szykany (wzdłuż toru)
+    maxBlockFraction: 0.35, // słupek najdalej tyle szerokości jezdni od krawędzi
+    restitution: 0.3, // odbicie od słupka (0 = brak)
+    speedKeep: 0.7, // mnożnik prędkości po mocnym uderzeniu
+    hitMinSpeed: 2, // [m/s] poniżej: tylko otarcie, bez kary
+  },
+  bump: {
+    widthFraction: 0.5, // część szerokości jezdni od krawędzi
+    depth: 0.8, // [m] wzdłuż toru
+    height: 0.12, // [m]
+    speedKeep: 0.85, // mnożnik prędkości przy przejeździe
+    minSpeed: 8, // [m/s] wolniej = bez kary
+    hopSeconds: 0.25, // [s] podskok karta (wizualny)
+  },
+};
+
+// ---------------------------------------------------------------------
 // Przedmioty. Rozmieszczenie skrzynek liczy generator toru, logikę
 // items.js, wygląd itemsMesh.js.
 // ---------------------------------------------------------------------
@@ -381,7 +422,7 @@ export const RACE = {
 
 // Wersja gry: klient z inną wersją niż host nie dołączy (inny protokół
 // albo fizyka). Zmieniaj przy każdym wdrożeniu, które zmienia grę.
-export const GAME_VERSION = '0.9.0';
+export const GAME_VERSION = '0.10.0';
 
 // ---------------------------------------------------------------------
 // Dźwięk (Web Audio, generowany). Głośności 0..1, częstotliwości [Hz].

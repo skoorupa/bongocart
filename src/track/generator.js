@@ -10,10 +10,10 @@
 //   3. skalowanie do docelowej długości + równomierny resampling,
 //   4. walidacja (ostre zakręty, samoprzecięcia / za blisko siebie);
 //      porażka -> kolejna próba z pochodnym seedem i spokojniejszym kształtem,
-//   5. z tej samej linii: checkpointy, start, pola startowe, skrzynki,
+//   5. z tej samej linii: checkpointy, start, pola startowe, skrzynki, przeszkody,
 //      linia jazdy botów, dekoracje, paleta.
 // =====================================================================
-import { TRACK, KART, ITEMS, THEMES } from '../config.js';
+import { TRACK, KART, ITEMS, THEMES, OBSTACLES } from '../config.js';
 import { createRng, deriveSeed } from '../rng.js';
 
 const TAU = Math.PI * 2;
@@ -325,6 +325,58 @@ function placeItemBoxes(seed, points, step, length, itemFrequency) {
   return boxes;
 }
 
+// Przeszkody: szykany ze słupków przy jednej krawędzi i progi zwalniające.
+// Tylko na prostych/łagodnych łukach, z dala od startu, mety i skrzynek;
+// wolny przejazd zawsze >= OBSTACLES.minFreeFraction szerokości jezdni.
+function placeObstacles(seed, points, step, length, itemBoxes, density) {
+  const O = OBSTACLES, P = O.post, B = O.bump;
+  const spacing = O.densities[density].spacing;
+  if (!spacing) return [];
+  const rng = createRng(deriveSeed(seed, 'obstacles'));
+  const n = points.length, half = TRACK.width / 2;
+  const boxS = [...new Set(itemBoxes.map((b) => b.index))].map((i) => points[i].s);
+  const along = (a, b) => { const d = Math.abs(a - b) % length; return Math.min(d, length - d); };
+  const nearBox = (s) => boxS.some((bs) => along(s, bs) < O.boxClearance);
+  const gentle = (s) => {
+    for (let m = -O.cornerWindow; m <= O.cornerWindow; m += step) {
+      if (points[mod(Math.round((s + m) / step), n)].radius < O.minCornerRadius) return false;
+    }
+    return true;
+  };
+  // Najdalej od krawędzi: limit szykany i limit wolnego przejazdu.
+  const maxDepth = TRACK.width * Math.min(P.maxBlockFraction, 1 - O.minFreeFraction);
+  const out = [];
+  for (let s = O.afterStart + step; ; s += spacing * (1 + rng.range(-O.jitter, O.jitter))) {
+    // Losowania zawsze w tej samej kolejności (determinizm).
+    const side = rng.next() < 0.5 ? -1 : 1;
+    const isBump = rng.next() < O.bumpChance;
+    const count = rng.int(P.count[0], P.count[1]);
+    const depths = Array.from({ length: P.count[1] }, () => rng.range(O.edgeMargin + 2 * P.radius, maxDepth));
+    const span = isBump ? B.depth : (count - 1) * P.spacing;
+    // Wylosowane miejsce zajęte (skrzynki, zakręt) -> szukamy dalej, zamiast pomijać.
+    const ok = (x) => !nearBox(x) && !nearBox(x + span) && gentle(x) && gentle(x + span);
+    let at = s;
+    while (at - s <= spacing * O.searchFraction && !ok(at)) at += O.searchStep;
+    if (at + span + step > length - O.beforeFinish) break; // + step: zaokrąglenie do próbki
+    if (!ok(at)) continue;
+    s = at; // kolejna przeszkoda liczy odstęp od tej
+    if (isBump) {
+      const index = mod(Math.round(s / step), n);
+      const w = TRACK.width * Math.min(B.widthFraction, 1 - O.minFreeFraction);
+      const [latFrom, latTo] = side > 0 ? [half - w, half] : [-half, -half + w];
+      out.push({ type: 'bump', index, s: points[index].s, latFrom, latTo, heading: points[index].heading });
+    } else {
+      for (let k = 0; k < count; k++) {
+        const index = mod(Math.round((s + k * P.spacing) / step), n);
+        const p = points[index];
+        const lat = side * (half - depths[k] + P.radius);
+        out.push({ type: 'post', x: p.x + p.nx * lat, z: p.z + p.nz * lat, s: p.s, radius: P.radius });
+      }
+    }
+  }
+  return out;
+}
+
 function placeDecorations(seed, track) {
   const d = TRACK.decorations;
   const rng = createRng(deriveSeed(seed, 'decor'));
@@ -347,9 +399,9 @@ function placeDecorations(seed, track) {
 }
 
 // ---------------------------------------------------------------------
-// API: generateTrack({seed, size, difficulty, theme, itemFrequency})
+// API: generateTrack({seed, size, difficulty, theme, itemFrequency, obstacles})
 // ---------------------------------------------------------------------
-export function generateTrack({ seed, size, difficulty, theme, itemFrequency }) {
+export function generateTrack({ seed, size, difficulty, theme, itemFrequency, obstacles = 'none' }) {
   seed = String(seed);
   const diff = TRACK.difficulties[difficulty];
   const length0 = targetTrackLength(size);
@@ -410,6 +462,8 @@ export function generateTrack({ seed, size, difficulty, theme, itemFrequency }) 
     itemBoxes: placeItemBoxes(seed, points, step, length, itemFrequency),
     spatial: buildSpatial(points),
   };
+  track.obstacles = placeObstacles(seed, points, step, length, track.itemBoxes, obstacles);
+  track.posts = track.obstacles.filter((o) => o.type === 'post'); // dla fizyki i botów
   track.decorations = placeDecorations(seed, track);
   return track;
 }
@@ -422,5 +476,6 @@ export function trackParamsFromSettings(settings, seed) {
     difficulty: settings.trackDifficulty,
     theme: settings.theme,
     itemFrequency: settings.itemFrequency,
+    obstacles: settings.obstacles,
   };
 }
