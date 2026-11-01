@@ -29,7 +29,7 @@ Po zmianie gry podbij `GAME_VERSION` w `src/config.js` — gracz ze starą wersj
 3. Znajomi otwierają link albo wpisują kod → **Dołącz**.
 4. Host wybiera ustawienia (albo preset: Standard / Chaos / Czysty wyścig) i klika **Start**.
 
-Na torze mogą stać przeszkody (ustawienie „Przeszkody na torze”: Brak / Mało / Dużo): grupy słupków na środku jezdni (slalom albo rządek; uderzenie zabiera ok. 30% prędkości, kart prześlizguje się obok) — oraz progi zwalniające na pół szerokości toru (−15% przy szybkiej jeździe). Zawsze zostaje szeroki wolny przejazd.
+Na torze mogą stać przeszkody (ustawienie „Przeszkody na torze”: Brak / Mało / Dużo): grupy słupków na środku jezdni (slalom albo rządek; uderzenie zabiera ok. 30% prędkości, kart prześlizguje się obok) — oraz szerokie progi zwalniające (ok. 70% szerokości toru, z wolnym pasem z boku) (−15% przy szybkiej jeździe). Zawsze zostaje szeroki wolny przejazd.
 
 ## Sterowanie
 

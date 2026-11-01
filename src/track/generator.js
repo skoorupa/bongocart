@@ -329,7 +329,7 @@ function placeItemBoxes(seed, points, step, length, itemFrequency) {
 // zwalniające przy krawędzi.
 // Tylko na prostych/łagodnych łukach, z dala od startu, mety i skrzynek;
 // wolny przejazd: obok słupka >= post.minGap z każdej strony, obok progu
-// >= OBSTACLES.minFreeFraction szerokości jezdni.
+// >= bump.minGap.
 function placeObstacles(seed, points, step, length, itemBoxes, density) {
   const O = OBSTACLES, P = O.post, B = O.bump;
   const spacing = O.densities[density].spacing;
@@ -365,7 +365,7 @@ function placeObstacles(seed, points, step, length, itemBoxes, density) {
     s = at; // kolejna przeszkoda liczy odstęp od tej
     if (isBump) {
       const index = mod(Math.round(s / step), n);
-      const w = TRACK.width * Math.min(B.widthFraction, 1 - O.minFreeFraction);
+      const w = Math.min(TRACK.width * B.widthFraction, TRACK.width - B.minGap);
       const [latFrom, latTo] = side > 0 ? [half - w, half] : [-half, -half + w];
       out.push({ type: 'bump', index, s: points[index].s, latFrom, latTo, heading: points[index].heading });
     } else {

@@ -123,7 +123,6 @@ test('przeszkody: none = brak, ten sam seed = te same przeszkody, nie zmieniają
 });
 
 test('przeszkody leżą na jezdni, poza strefami i zostawiają wolny przejazd (wiele seedów)', () => {
-  const maxBlocked = TRACK.width * (1 - OBSTACLES.minFreeFraction);
   const boxGap = OBSTACLES.boxClearance - (OBSTACLES.post.count[1] - 1) * OBSTACLES.post.spacing;
   let withObstacles = 0, total = 0;
   for (const size of Object.keys(TRACK.sizes)) {
@@ -143,7 +142,9 @@ test('przeszkody leżą na jezdni, poza strefami i zostawiają wolny przejazd (w
           assert.ok(lat + o.radius + OBSTACLES.post.minGap <= t.halfWidth + 1e-6, `${t.seed}: za mało miejsca obok słupka (lat ${lat})`);
         } else {
           assert.ok(o.latFrom >= -t.halfWidth - 1e-6 && o.latTo <= t.halfWidth + 1e-6 && o.latFrom < o.latTo);
-          assert.ok(o.latTo - o.latFrom <= maxBlocked + 1e-6, `${t.seed}: próg za szeroki`);
+          const w = o.latTo - o.latFrom;
+          assert.ok(TRACK.width - w >= OBSTACLES.bump.minGap - 1e-6, `${t.seed}: próg nie zostawia wolnego pasa`);
+          assert.ok(w >= TRACK.width * 0.65, `${t.seed}: próg za wąski (${w})`);
         }
       }
     }

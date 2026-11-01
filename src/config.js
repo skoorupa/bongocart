@@ -287,7 +287,6 @@ export const OBSTACLES = {
   cornerWindow: 20, // [m] okno (±) sprawdzania zakrętu wokół przeszkody
   minCornerRadius: 45, // [m] przeszkody tylko na prostych i łagodnych łukach
   bumpChance: 0.4, // szansa, że przeszkoda to próg (reszta: szykana)
-  minFreeFraction: 0.6, // wolny przejazd: min. część szerokości jezdni
   post: {
     radius: 0.6, // [m] promień kolizji słupka
     height: 1.4, // [m]
@@ -302,8 +301,9 @@ export const OBSTACLES = {
     contactSlop: 0.05, // [m] luz: kart tuż przy słupku (po wypchnięciu) nadal "w kontakcie"
   },
   bump: {
-    widthFraction: 0.5, // część szerokości jezdni od krawędzi
-    depth: 0.8, // [m] wzdłuż toru
+    widthFraction: 0.7, // część szerokości jezdni od krawędzi
+    minGap: 4, // [m] wolny pas obok progu (da się go objechać)
+    depth: 1.6, // [m] wzdłuż toru
     height: 0.12, // [m]
     speedKeep: 0.85, // mnożnik prędkości przy przejeździe
     minSpeed: 8, // [m/s] wolniej = bez kary

@@ -116,3 +116,7 @@ albo **rządek** (na osi, rozrzut ±0,8 m). Niezmiennik wolnego przejazdu dla s�
 ≥ `post.minGap` = 3,5 m (zamiast 60% szerokości po jednej stronie; progi bez zmian). Uderzenie: kart traci 30%
 prędkości raz na kontakt i jest wypychany w bok, obok słupka (bez odbicia do tyłu). Boty objeżdżają całą grupę
 z jednej strony (wybranej raz), bez „pływania” po torze w trakcie objazdu.
+
+Kolejna zmiana na prośbę użytkownika: progi szersze — 70% szerokości jezdni (9,8 m) od krawędzi, z wolnym pasem
+≥ `bump.minGap` = 4 m (zastępuje `minFreeFraction`, które znika z configu), i głębsze — 1,6 m wzdłuż toru (tylko
+wygląd; kara liczy się przy przejeździe przez środek progu, jak dotąd).
