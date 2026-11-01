@@ -534,15 +534,15 @@ export const THEMES = {
 export const PRESETS = {
   standard: {
     label: 'Standard',
-    values: { itemFrequency: 'normal', enabledItems: ['rocket', 'banana', 'boost', 'shield'], kartCollisions: true, botDifficulty: 'medium', speedClass: '150cc', minRacers: 4 },
+    values: { itemFrequency: 'normal', enabledItems: ['rocket', 'banana', 'boost', 'shield'], kartCollisions: true, botDifficulty: 'medium', speedClass: '150cc', minRacers: 4, obstacles: 'few' },
   },
   chaos: {
     label: 'Chaos',
-    values: { itemFrequency: 'often', enabledItems: ['rocket', 'banana', 'boost', 'shield'], kartCollisions: true, botDifficulty: 'hard', speedClass: '200cc', minRacers: 8 },
+    values: { itemFrequency: 'often', enabledItems: ['rocket', 'banana', 'boost', 'shield'], kartCollisions: true, botDifficulty: 'hard', speedClass: '200cc', minRacers: 8, obstacles: 'many' },
   },
   clean: {
     label: 'Czysty wyścig',
-    values: { itemFrequency: 'none', enabledItems: [], kartCollisions: false, botDifficulty: 'hard', speedClass: '150cc', minRacers: 4 },
+    values: { itemFrequency: 'none', enabledItems: [], kartCollisions: false, botDifficulty: 'hard', speedClass: '150cc', minRacers: 4, obstacles: 'none' },
   },
 };
 
@@ -579,6 +579,7 @@ export const SETTINGS_SCHEMA = [
   { key: 'kartCollisions', type: 'bool', label: 'Kolizje między kartami', default: true },
   { key: 'trackSize', type: 'select', label: 'Rozmiar toru', options: optionsOf(TRACK.sizes), default: 'medium' },
   { key: 'trackDifficulty', type: 'select', label: 'Trudność toru', options: optionsOf(TRACK.difficulties), default: 'medium' },
+  { key: 'obstacles', type: 'select', label: 'Przeszkody na torze', options: optionsOf(OBSTACLES.densities), default: 'few' },
   {
     key: 'trackSeed', type: 'text', label: 'Seed toru (puste = losowy)',
     maxLength: 24, pattern: /^[A-Za-z0-9_-]*$/, placeholder: 'losowy', default: '',

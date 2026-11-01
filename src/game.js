@@ -96,6 +96,7 @@ export function createGame({ track, settings, humans, seed }) {
             speedMul: speedMulFor(r, leaderProgress),
             slot: items.slots.get(r.id),
             hazards: items.bananas,
+            obstacles: track.posts,
             // Odstępy [m] do sąsiadów w kolejności (null = brak sąsiada).
             gapAhead: place > 0 ? order[place - 1].progress - r.progress : null,
             gapBehind: place < order.length - 1 ? r.progress - order[place + 1].progress : null,

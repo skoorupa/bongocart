@@ -5,7 +5,7 @@ import { generateTrack } from '../src/track/generator.js';
 import { createGame, buildRoster } from '../src/game.js';
 import { defaultSettings } from '../src/settings.js';
 import { collideKarts, createKartState } from '../src/physics.js';
-import { PHYSICS, MAX_RACERS, KART, RACE, TRACK } from '../src/config.js';
+import { PHYSICS, MAX_RACERS, KART, RACE, TRACK, AI, OBSTACLES } from '../src/config.js';
 
 const DT = PHYSICS.fixedDt;
 const track = generateTrack({ seed: 'bots', size: 'small', difficulty: 'hard', theme: 'random', itemFrequency: 'none' });
@@ -121,4 +121,35 @@ test('rozłączony gracz: kart przejmuje AI, wyścig na niego nie czeka', () => 
   assert.notEqual(rb.finishTime, null, `b przejechał ${b.trackS} m`);
   assert.ok(rb.takenOver && !rb.isHuman);
   assert.equal(game.race.phase, 'racing'); // czeka na człowieka "a" (albo limit czasu)
+});
+
+test('boty kończą wyścig z gęstymi przeszkodami, omijają słupki i się nie zakleszczają', () => {
+  const params = { seed: 'bots', size: 'small', difficulty: 'hard', theme: 'random', itemFrequency: 'none' };
+  const obs = generateTrack({ ...params, obstacles: 'many' });
+  assert.ok(obs.posts.length > 0);
+  const race = (t) => {
+    const game = createGame({ track: t, settings: settingsWith({ minRacers: 4, laps: 1, botDifficulty: 'medium', obstacles: 'many' }), humans: [], seed: 'obs' });
+    const slow = new Map(), touching = new Map();
+    let hits = 0, maxSlow = 0;
+    for (let i = 0; i < 120 / DT && game.race.phase !== 'finished'; i++) {
+      game.step(DT, NONE);
+      if (game.race.phase !== 'racing') continue;
+      for (const [id, k] of game.karts) {
+        const s = Math.abs(k.speed) < AI.stuck.speed ? (slow.get(id) ?? 0) + DT : 0;
+        slow.set(id, s);
+        maxSlow = Math.max(maxSlow, s);
+        const near = t.posts.some((o) => Math.hypot(k.x - o.x, k.z - o.z) < KART.radius + o.radius + 0.05);
+        if (near && !touching.get(id)) hits++;
+        touching.set(id, near);
+      }
+    }
+    return { times: game.race.racers.map((r) => r.finishTime), hits, maxSlow };
+  };
+  const base = race(generateTrack(params));
+  const res = race(obs);
+  assert.ok(res.times.every((x) => x !== null), JSON.stringify(res.times));
+  assert.ok(Math.min(...res.times) <= Math.min(...base.times) * 1.08, `${Math.min(...res.times)} vs ${Math.min(...base.times)}`);
+  assert.ok(res.maxSlow <= AI.stuck.time, `stał ${res.maxSlow} s`);
+  // Deterministyczne: bez omijania w ai.js boty trafiają tu 3 razy, z omijaniem 1.
+  assert.ok(res.hits <= 1, `uderzeń w słupki: ${res.hits} (słupków ${obs.posts.length})`);
 });

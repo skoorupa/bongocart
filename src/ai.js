@@ -53,13 +53,14 @@ export function createDriver(track, difficulty, seed) {
   }
 
   // Przesunięcie, żeby nie wjechać w kart przed sobą (+ = w prawo).
-  function avoidance(kart, others, hazards) {
+  // Banany omija tylko bot z skill.dodge, słupki toru — każdy.
+  function avoidance(kart, others, hazards, obstacles) {
     const fx = Math.sin(kart.heading), fz = Math.cos(kart.heading);
-    for (const o of skill.dodge ? [...others, ...hazards] : others) {
+    for (const o of [...others, ...(skill.dodge ? hazards : []), ...obstacles]) {
       const dx = o.x - kart.x, dz = o.z - kart.z;
       const ahead = dx * fx + dz * fz;
       const side = dx * -fz + dz * fx;
-      const speed = o.speed ?? 0; // przeszkody (banany) stoją
+      const speed = o.speed ?? 0; // przeszkody (banany, słupki) stoją
       if (ahead > 0 && ahead < AI.avoid.ahead && Math.abs(side) < AI.avoid.width && speed < kart.speed + 1) {
         return side > 0 ? -AI.avoid.shift : AI.avoid.shift;
       }
@@ -93,14 +94,15 @@ export function createDriver(track, difficulty, seed) {
 
   return {
     // ctx: {others: [stany innych kartów], stats, speedMul (gumka 0..1+),
-    //       slot {item, roll}, gapAhead, gapBehind [m], hazards [{x, z}]}
+    //       slot {item, roll}, gapAhead, gapBehind [m], hazards [{x, z}] (banany),
+    //       obstacles [{x, z}] (słupki toru)}
     control(kart, ctx, dt) {
       t += dt;
       const i = indexOf(kart.trackS);
       const speed = kart.speed;
 
       // --- Cel na linii jazdy + "pływanie" + omijanie.
-      avoidOffset = approach(avoidOffset, avoidance(kart, ctx.others, ctx.hazards ?? []), AI.avoid.rate * dt);
+      avoidOffset = approach(avoidOffset, avoidance(kart, ctx.others, ctx.hazards ?? [], ctx.obstacles ?? []), AI.avoid.rate * dt);
       const noise = skill.lineNoise * AI.noisePeriods.reduce((sum, p, k) => sum + Math.sin(phases[k] + (t * Math.PI * 2) / p), 0) / AI.noisePeriods.length;
       const look = AI.lookAheadMin + Math.max(0, speed) * AI.lookAheadTime;
       const j = (i + Math.round(look / track.step)) % n;

@@ -51,3 +51,11 @@ test('presety: każda wartość przechodzi walidację schematu', async () => {
     }
   }
 });
+
+test('przeszkody: domyślnie "Mało", presety wg spec', async () => {
+  const { PRESETS } = await import('../src/config.js');
+  assert.equal(defaultSettings().obstacles, 'few');
+  assert.equal(PRESETS.standard.values.obstacles, 'few');
+  assert.equal(PRESETS.chaos.values.obstacles, 'many');
+  assert.equal(PRESETS.clean.values.obstacles, 'none');
+});
