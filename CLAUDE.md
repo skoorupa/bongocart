@@ -21,12 +21,15 @@ Przeglądarkowe wyścigi kartingowe dla 2–8 znajomych + boty. Three.js 0.170 (
 
 ## Sieć (net/*)
 
-Gwiazda, host autorytatywny. Klient wysyła sterowanie z numerami kroków (`seq`), host zużywa je z kolejki (`createInputQueue`) i w snapshotach (20 Hz) potwierdza ostatni `ack`. Klient przewiduje własny kart i po snapshocie powtarza niepotwierdzone kroki (`clientSim.js`); inne karty interpoluje z opóźnieniem `NET.interpDelaySeconds`. Kolejność kartów w snapshocie = kolejność `race.racers`, więc klient musi zbudować grę z tym samym `humans` i ustawieniami (wiadomość `start`). Wszystko od klientów jest niezaufane — walidacja w `session.js`/`protocol.js`/`lobby.js`.
+Gwiazda, host autorytatywny. Klient wysyła sterowanie z numerami kroków (`seq`), host zużywa je z kolejki (`createInputQueue`) i w snapshotach (20 Hz) potwierdza ostatni `ack`. Klient przewiduje własny kart i po snapshocie powtarza niepotwierdzone kroki (`clientSim.js`); inne karty interpoluje z opóźnieniem `NET.interpDelaySeconds`. Kolejność kartów w snapshocie = kolejność `race.racers`, więc klient musi zbudować grę z tym samym `humans` i ustawieniami (wiadomość `start`; w turnieju `start.tournament.roster` = zamrożony skład, przekazywany do `createGame({roster})`). Turniej: host wysyła `tourney` (gotowy widok tabeli i gotowości), klient tylko `ready`. Wszystko od klientów jest niezaufane — walidacja w `session.js`/`protocol.js`/`lobby.js`.
 
 ## Testowanie w przeglądarce — pułapki
 
+- **Adres:** w Chrome używaj `http://127.0.0.1:8080/` — `localhost` bywa rozwiązywany na IPv6 (`::1`), a `http.server` słucha tylko na IPv4 (strona `chrome-error`, `fetch` → „Failed to fetch”).
 - **Cache modułów:** `http.server` nie wysyła nagłówków cache, przeglądarka trzyma stare `src/*.js`, a `?v=` w adresie strony NIE odświeża importów. Przed testem: `fetch('/src/plik.js', {cache: 'reload'})` dla zmienionych plików, potem przeładowanie strony.
 - **Multiplayer w jednej karcie:** karta w tle zatrzymuje `requestAnimationFrame`, więc dwie karty nie działają. Klient jako `<iframe src="/?debug&room=KOD">` na stronie hosta — oba widoczne, prawdziwy PeerJS. Sterowanie: `iframe.contentWindow.dispatchEvent(new KeyboardEvent(...))`.
+- **Spowolnienie karty:** karta sterowana przez rozszerzenie bywa dławiona (wyścig potrafi iść ~30× wolniej), a `javascript_tool` ma limit ~45 s na wywołanie — czekaj w pętlach < 40 s. Szybkie kończenie mapy do testów UI: w `bongo.race.racers` ustaw człowiekowi `started = true, nextCp = 0` i postaw jego kart (u hosta: `bongo.game.karts`) kilka punktów przed metą z prędkością — wtedy czasy w tabeli są sztuczne (DNF botów przez limit), to nie błąd.
+- Klawisze przez narzędzie `computer`: strzałki to `Left`/`Right` (nie `ArrowLeft`).
 - Autopilot do testów: pętla rAF wysyłająca `KeyW/KeyA/KeyD` w stronę punktu `track.points[(i+8)%n]`.
 - `RTCDataChannel.prototype.send` nie da się podmienić (webrtc-adapter w PeerJS łata instancje) — heartbeat jest testowany w Node (`tests/heartbeat.test.js`).
 - Błędy `bootstrap-autofill-overlay.js` w konsoli pochodzą z rozszerzenia przeglądarki, nie z gry.
@@ -34,12 +37,13 @@ Gwiazda, host autorytatywny. Klient wysyła sterowanie z numerami kroków (`seq`
 
 ## Stan (2026-11-01)
 
-Zrobione etapy 1–8 ze specyfikacji (generator torów, fizyka+kamera, okrążenia/HUD, boty, przedmioty, multiplayer PeerJS, przejęcie rozłączonego gracza przez bota, dźwięk/efekty/presety) oraz: nicki nad kartami, tabela pozycji na żywo, tory z wcięciami (płaty — `TRACK.lobeHarmonics`), silnik z biegami, przeszkody na torze (słupki slalom/rządek na środku i progi — `OBSTACLES`; część toru z seeda, więc bez zmian w protokole poza `bumpTime`), turniej (`tournament.js`: N map, punkty `TOURNAMENT.points`, gotowość między mapami, tabela pod Tab; stan trzyma host/solo, klienci dostają `tourney`).
+Zrobione etapy 1–8 ze specyfikacji (generator torów, fizyka+kamera, okrążenia/HUD, boty, przedmioty, multiplayer PeerJS, przejęcie rozłączonego gracza przez bota, dźwięk/efekty/presety) oraz: nicki nad kartami, tabela pozycji na żywo, tory z wcięciami (płaty — `TRACK.lobeHarmonics`), silnik z biegami, przeszkody na torze (słupki slalom/rządek na środku i progi — `OBSTACLES`; część toru z seeda, więc bez zmian w protokole poza `bumpTime`), turniej (`tournament.js`: N map z seeda `mapSeedOf`, punkty `TOURNAMENT.points`, remis = łączny czas, DNF = czas trwania wyścigu, gotowość między mapami + „Start mimo wszystko”, tabela pod Tab; stan trzyma host/solo, klienci dostają `tourney`; w turnieju wyścig czeka na wszystkich — `createRace({waitForAll})` — z limitem `RACE.finishTimeoutSeconds`), a po mecie kart znika z symulacji (`game.step` pomija ukończonych; kamera pokazuje jadących — `spectateTargets`/`cycleSpectate`, ← / →).
 
 Znane ograniczenia (świadome, opisane w README): wyjście hosta kończy grę; karta hosta musi być na wierzchu; brak serwera TURN; powracający gracz nie odzyskuje karta.
 
 Otwarte / do potwierdzenia z użytkownikiem:
 - czy nowy dźwięk silnika brzmi dobrze (parametry w `AUDIO.engine`);
-- ewentualna trwała tablica rekordów (najlepsze czasy na torze) — „leaderboard” zrobiony jako tabela na żywo w wyścigu;
+- ewentualna trwała tablica rekordów (najlepsze czasy na torze) — jest tabela na żywo w wyścigu i tabela turnieju, ale nic nie jest zapisywane między sesjami;
+- drobiazgi odłożone przy turnieju: etykieta seeda w lobby turnieju pokazuje `X-1`, a „Przypnij seed” zapisuje `X`; klient chwilowo nadpisuje `randomTrackSeed` seedem mapy;
 - czy „Średni” tor ma mieć mocniejsze wcięcia (obecnie najwyraźniejsze kształty B/koniczynka na „Trudnym”);
 - repo jest tylko lokalne (nie wypchnięte na GitHuba / nie wdrożone).
