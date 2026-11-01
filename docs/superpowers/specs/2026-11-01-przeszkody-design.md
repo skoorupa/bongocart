@@ -50,8 +50,9 @@ powyżej `post.hitMinSpeed` cała prędkość jest mnożona przez `post.speedKee
 **Próg:** kart wjeżdża na próg, gdy jego `trackS` przechodzi przez `s` progu (w danym kroku), a `lateral`
 mieści się w `[latFrom − KART.radius, latTo + KART.radius]`. Jeśli `|speed| > bump.minSpeed`, prędkość
 (vx, vz, speed) jest mnożona przez `bump.speedKeep` (≈ 0,85). Przejście przez `s` zdarza się raz na przejazd,
-więc kara nie powtarza się w kolejnych krokach. Wizualnie: krótki podskok karta. Liczy go rysowanie z pola stanu
-`kart.bumpHit` (siła, zanika jak `wallHit`), żeby `main.js`/`kartMesh.js` mogły dodać podskok i dźwięk.
+więc kara nie powtarza się w kolejnych krokach. Wizualnie: krótki podskok karta. Fizyka ustawia licznik
+`kart.bumpTime = bump.hopSeconds` (maleje do 0, jak `drift.hop`); `kartMesh.js` rysuje z niego podskok,
+a `main.js` odtwarza cichy dźwięk uderzenia. Pole jest w snapshocie (`KART_FIELDS`), więc podskakują też cudze karty.
 
 ## Rozmieszczenie
 
@@ -88,7 +89,7 @@ Nowy `src/track/obstacleMesh.js` (trackMesh.js zostaje przy jezdni):
 - słupek: pomarańczowy stożek/walec z białym paskiem, wymiary z `OBSTACLES.post`;
 - próg: niski, zaokrąglony prostopadłościan w żółto-czarne pasy, ułożony w poprzek toru (`heading`).
 
-`main.js` dodaje te obiekty do sceny obok skrzynek oraz podskok karta i dźwięk na `bumpHit`.
+`main.js` dodaje te obiekty do sceny obok skrzynek i odtwarza dźwięk, gdy `bumpTime` własnego karta zostaje ustawiony.
 
 ## Testy (Node)
 
