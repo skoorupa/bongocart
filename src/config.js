@@ -305,7 +305,14 @@ export const OBSTACLES = {
     speedKeep: 0.85, // mnożnik prędkości przy przejeździe
     minSpeed: 8, // [m/s] wolniej = bez kary
     hopSeconds: 0.25, // [s] podskok karta (wizualny)
+    hopHeight: 0.22, // [m] wysokość podskoku
+    stripeWidth: 0.7, // [m] szerokość pasa żółty/czarny
   },
+  colors: { post: 0xff6d00, postBand: 0xffffff, bumpA: 0xffd600, bumpB: 0x212121 },
+  postBandHeight: 0.18, // [m] biała opaska na słupku
+  postBandAt: 0.55, // wysokość opaski (× wysokość słupka)
+  bumpSound: 0.25, // siła dźwięku uderzenia przy progu (0..1, jak wall)
+  bumpShake: 0.12, // [m] wstrząs kamery przy progu
 };
 
 // ---------------------------------------------------------------------

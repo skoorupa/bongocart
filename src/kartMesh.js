@@ -3,7 +3,7 @@
 // "bongo" — okrągła postać w kasku). Brak zewnętrznych modeli.
 // =====================================================================
 import * as THREE from 'three';
-import { KART, RENDER } from './config.js';
+import { KART, RENDER, OBSTACLES } from './config.js';
 
 const DRIFT_SPARK_COLORS = [0xffffff, 0x4fc3ff, 0xff9f1c]; // poziom 0, 1, 2
 
@@ -158,7 +158,10 @@ export function createKartMesh(color, name = null) {
       frontPivots.forEach((p) => { p.rotation.y = -view.steer * 0.45; });
 
       const d = view.drift;
-      const hop = d.hop > 0 ? Math.sin((d.hop / KART.drift.hopTime) * Math.PI) * 0.35 : 0;
+      const driftHop = d.hop > 0 ? Math.sin((d.hop / KART.drift.hopTime) * Math.PI) * 0.35 : 0;
+      const B = OBSTACLES.bump;
+      const bumpHop = view.bumpTime > 0 ? Math.sin((view.bumpTime / B.hopSeconds) * Math.PI) * B.hopHeight : 0;
+      const hop = Math.max(driftHop, bumpHop);
       body.position.y = hop;
       body.rotation.y = -d.dir * KART.driftBodyYaw;
       body.rotation.z = (d.active ? -d.dir : -view.steer * Math.min(Math.abs(view.speed) / KART.baseMaxSpeed, 1)) * KART.maxBodyRoll;

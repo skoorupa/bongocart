@@ -9,7 +9,7 @@
 // Symulacja: game.js / net/*; tutaj wejście, rysowanie i UI.
 // =====================================================================
 import * as THREE from 'three';
-import { SETTINGS_SCHEMA, RENDER, PHYSICS, KART_COLORS, RACE, NET, MAX_RACERS, GAME_VERSION, PRESETS, AUDIO, CAMERA } from './config.js';
+import { SETTINGS_SCHEMA, RENDER, PHYSICS, KART_COLORS, RACE, NET, MAX_RACERS, GAME_VERSION, PRESETS, AUDIO, CAMERA, OBSTACLES } from './config.js';
 import { defaultSettings, applySettingChange, randomSeed, sanitizeSettings } from './settings.js';
 import { generateTrack, trackParamsFromSettings } from './track/generator.js';
 import { buildTrackVisual, applyThemeToScene, disposeObject } from './track/trackMesh.js';
@@ -19,6 +19,7 @@ import { createLobbyPanel } from './ui/lobbyPanel.js';
 import { createInput } from './input.js';
 import { createKartMesh } from './kartMesh.js';
 import { createItemsView } from './itemsMesh.js';
+import { buildObstaclesVisual } from './track/obstacleMesh.js';
 import { createChaseCamera } from './camera.js';
 import { createGame } from './game.js';
 import { createHud } from './ui/hud.js';
@@ -154,6 +155,7 @@ function rebuildTrack() {
     disposeObject(visual.group);
   }
   visual = buildTrackVisual(track);
+  visual.group.add(buildObstaclesVisual(track)); // sprzątane razem z torem (disposeObject)
   visual.debug.visible = $('showDebug').checked;
   scene.add(visual.group);
   if (itemsView) {
@@ -476,6 +478,7 @@ function viewOf(id, alpha, lookBack = false) {
     boostTime: k.boostTime,
     spinTime: k.spinTime,
     shieldTime: k.shieldTime,
+    bumpTime: k.bumpTime,
     speedFrac: Math.abs(k.speed) / game.stats.maxSpeed,
     boosting: k.boostTime > 0,
     driftDir: k.drift.active ? k.drift.dir : 0,
@@ -528,6 +531,7 @@ renderer.setAnimationLoop(() => {
     renderMute();
   }
   let wallHit = 0; // najmocniejsze uderzenie własnego karta w tej klatce
+  let bumped = false; // własny kart wjechał w tej klatce na próg
 
   // Solo z otwartym menu = pauza; w sieci gra toczy się dalej (sterowanie wyłączone).
   const running = inRace && !(menuOpen && !isOnline());
@@ -543,6 +547,7 @@ renderer.setAnimationLoop(() => {
         savePrev(localId);
         sim.stepLocal(local);
         wallHit = Math.max(wallHit, game.karts.get(localId).wallHit);
+        bumped ||= game.karts.get(localId).bumpTime >= OBSTACLES.bump.hopSeconds;
       } else {
         savePrev();
         const inputs = new Map([[localId, local]]);
@@ -550,6 +555,7 @@ renderer.setAnimationLoop(() => {
         const events = game.step(PHYSICS.fixedDt, inputs);
         handleEvents(events);
         wallHit = Math.max(wallHit, game.karts.get(localId)?.wallHit ?? 0);
+        bumped ||= (game.karts.get(localId)?.bumpTime ?? 0) >= OBSTACLES.bump.hopSeconds;
         if (mode === 'host') {
           pendingEvents.push(...events);
           if (++hostTick % NET.snapshotEverySteps === 0) {
@@ -588,6 +594,10 @@ renderer.setAnimationLoop(() => {
     if (wallHit > AUDIO.wallMinSpeed) {
       audio.play('wall', wallHit / game.stats.maxSpeed);
       chase.shake(wallHit * CAMERA.shake.wallPerSpeed);
+    }
+    if (bumped) {
+      audio.play('wall', OBSTACLES.bumpSound);
+      chase.shake(OBSTACLES.bumpShake);
     }
   }
 
