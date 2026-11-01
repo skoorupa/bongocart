@@ -94,12 +94,33 @@
 
   <div id="results" class="overlay" hidden>
     <div class="card">
-      <h2>Wyniki</h2>
+      <h2 id="resultsTitle">Wyniki</h2>
       <table id="resultsTable">
         <thead><tr><th></th><th>Kierowca</th><th>Czas</th><th>Najl. okr.</th></tr></thead>
         <tbody id="resultsBody"></tbody>
       </table>
+      <!-- Turniej: tabela sumaryczna i gotowość (ui/tournamentView.js). -->
+      <div id="tourneySection" hidden>
+        <h3 id="tourneyTitle">Turniej</h3>
+        <table class="score">
+          <thead><tr><th></th><th>Kierowca</th><th></th><th>Pkt</th><th>Łączny czas</th><th></th></tr></thead>
+          <tbody id="tourneyBody"></tbody>
+        </table>
+        <button id="readyBtn" class="wide">✓ Gotowy</button>
+        <button id="forceStart" class="wide secondary">Start mimo wszystko</button>
+      </div>
       <button id="backToLobby" class="wide">Wróć do lobby</button>
+    </div>
+  </div>
+
+  <!-- Tabela turnieju pod klawiszem Tab (w trakcie wyścigu turniejowego). -->
+  <div id="tabBoard" class="overlay" hidden>
+    <div class="card">
+      <h2 id="tabBoardTitle">Turniej</h2>
+      <table class="score">
+        <thead><tr><th></th><th>Kierowca</th><th></th><th>Pkt</th><th>Łączny czas</th><th></th></tr></thead>
+        <tbody id="tabBoardBody"></tbody>
+      </table>
     </div>
   </div>
 

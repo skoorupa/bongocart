@@ -223,10 +223,13 @@ button.wide { width: 100%; margin-top: 12px; }
 }
 .card h2 { margin: 0 0 10px; color: var(--accent); }
 button.secondary { background: #3a3a55; color: var(--text); }
-#resultsTable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-#resultsTable th { text-align: left; font-weight: 400; color: var(--muted); padding: 4px 10px 4px 0; }
-#resultsTable td { padding: 5px 10px 5px 0; }
-#resultsTable tr.me td { color: var(--accent); font-weight: 700; }
+#resultsTable, .score { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+#resultsTable th, .score th { text-align: left; font-weight: 400; color: var(--muted); padding: 4px 10px 4px 0; }
+#resultsTable td, .score td { padding: 5px 10px 5px 0; }
+#resultsTable tr.me td, .score tr.me td { color: var(--accent); font-weight: 700; }
+#tourneySection h3 { margin: 16px 0 6px; color: var(--accent); font-size: 1rem; }
+#tourneySection button, #backToLobby { margin-top: 8px; }
+#tabBoard { background: rgba(0, 0, 0, 0.25); pointer-events: none; }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
 
 /* --- Etap 6: lobby sieciowe --- */

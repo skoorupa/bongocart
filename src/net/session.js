@@ -24,6 +24,7 @@ export function createHostSession({ send, broadcast, disconnect, profile, room, 
   // Gotowość zmieniła się (ready / wyjście): rozgłoś i ewentualnie ruszaj.
   const readyChanged = () => {
     sendTourney();
+    onChange?.();
     if (tournament?.phase === 'between' && tournament.allReady()) onAllReady?.();
   };
 

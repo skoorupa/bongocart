@@ -31,6 +31,14 @@ Po zmianie gry podbij `GAME_VERSION` w `src/config.js` — gracz ze starą wersj
 
 Na torze mogą stać przeszkody (ustawienie „Przeszkody na torze”: Brak / Mało / Dużo): grupy słupków na środku jezdni (slalom albo rządek; uderzenie zabiera ok. 30% prędkości, kart prześlizguje się obok) — oraz szerokie progi zwalniające (ok. 70% szerokości toru, z wolnym pasem z boku) (−15% przy szybkiej jeździe). Zawsze zostaje szeroki wolny przejazd.
 
+## Turniej
+
+W lobby ustaw **Tryb gry: Turniej** i **Liczbę map** (domyślnie 10; okrążenia z ustawienia „Liczba okrążeń”, domyślnie 5).
+Tory turnieju generują się z seeda (ten sam seed = te same mapy). Za miejsce na każdej mapie są punkty
+15-12-10-8-6-4-2-1; przy remisie wygrywa mniejszy łączny czas (kto nie dojechał, dostaje czas trwania wyścigu).
+Po każdej mapie widać tabelę turnieju; każdy klika **Gotowy**, a host może **Start mimo wszystko**.
+W trakcie wyścigu tabela jest pod klawiszem **Tab**. Gracz, który wyjdzie, zostaje w tabeli — dalej jedzie za niego bot.
+
 ## Sterowanie
 
 | Klawisz | Gamepad | Akcja |
@@ -44,6 +52,7 @@ Na torze mogą stać przeszkody (ustawienie „Przeszkody na torze”: Brak / Ma
 | R | — | powrót na tor |
 | M | — | dźwięk wł./wył. |
 | Esc | Start | menu (solo: pauza) |
+| Tab (trzymany) | — | tabela turnieju (w trybie turnieju) |
 
 ## Architektura
 
@@ -57,6 +66,7 @@ Na torze mogą stać przeszkody (ustawienie „Przeszkody na torze”: Brak / Ma
 | `src/items.js` | skrzynki i przedmioty |
 | `src/track/obstacleMesh.js` | wygląd przeszkód (słupki, progi); rozmieszczenie w generatorze, kolizje w fizyce |
 | `src/game.js` | symulacja całego wyścigu (liczy ją host) |
+| `src/tournament.js` | turniej: mapy, punkty, gotowość (stan trzyma host/solo) |
 | `src/net/*` | lobby, protokół, predykcja klienta, transport PeerJS |
 | `src/main.js` | wejście, rysowanie, UI |
 

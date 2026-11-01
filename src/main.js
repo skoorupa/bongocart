@@ -21,7 +21,8 @@ import { createKartMesh } from './kartMesh.js';
 import { createItemsView } from './itemsMesh.js';
 import { buildObstaclesVisual } from './track/obstacleMesh.js';
 import { createChaseCamera } from './camera.js';
-import { createGame } from './game.js';
+import { createGame, buildRoster } from './game.js';
+import { createTournament, mapSeedOf } from './tournament.js';
 import { createHud } from './ui/hud.js';
 import { createAudio } from './audio.js';
 import { createRng, deriveSeed } from './rng.js';
@@ -79,12 +80,16 @@ let sim = null; // klient: predykcja + interpolacja
 let inRace = false;
 let menuOpen = false;
 let resultsIn = null; // odliczanie do pokazania tabeli wyników
+let tournament = null; // turniej (host/solo są jego właścicielem; klient: null)
+let tourneyView = null; // widok turnieju do pokazania (host/solo: z tournament, klient: z wiadomości)
 let hostTick = 0;
 let pendingEvents = []; // host: zdarzenia do najbliższego snapshotu
 const meshes = new Map(); // id -> mesh karta
 const prev = new Map(); // id -> stan z poprzedniego kroku (interpolacja)
 
 const effectiveSeed = () => settings.trackSeed || randomTrackSeed;
+// Seed toru w lobby: w trybie turnieju podgląd mapy 1.
+const lobbyTrackSeed = () => (settings.gameMode === 'tournament' ? mapSeedOf(effectiveSeed(), 0) : effectiveSeed());
 const isOnline = () => mode === 'host' || mode === 'client';
 
 // --- Formularz ustawień: zmienia tylko solo/host; host rozsyła wynik.
@@ -144,8 +149,8 @@ for (const id of ['muteToggle', 'muteToggleMenu']) $(id).addEventListener('click
 renderMute();
 
 // --- Tor i podgląd stawki
-function rebuildTrack() {
-  const params = trackParamsFromSettings(settings, effectiveSeed());
+function rebuildTrack(seed = lobbyTrackSeed()) {
+  const params = trackParamsFromSettings(settings, seed);
   const key = JSON.stringify(params);
   if (key === trackKey) return;
   trackKey = key;
@@ -166,7 +171,7 @@ function rebuildTrack() {
   scene.add(itemsView.group);
   applyThemeToScene(scene, track.theme, true);
   minimap.setTrack(track);
-  $('seedLabel').textContent = `Seed: ${effectiveSeed()} · ${Math.round(track.length)} m`;
+  $('seedLabel').textContent = `Seed: ${seed} · ${Math.round(track.length)} m`;
 }
 
 // Ludzie w lobby (kolejność = kolejność dołączania).
@@ -215,6 +220,7 @@ function updateLobbyUi() {
   const canEdit = mode !== 'client' && !inRace;
   form.setReadOnly(!canEdit);
   for (const id of ['newTrack', 'pinSeed', 'startRace']) $(id).disabled = !canEdit;
+  $('startRace').textContent = settings.gameMode === 'tournament' ? '🏁 Start turnieju' : '🏁 Start wyścigu';
   for (const { b, preset } of presetButtons) {
     b.disabled = !canEdit;
     b.setAttribute('aria-pressed', String(presetActive(preset)));
@@ -240,7 +246,12 @@ function createRoom() {
         disconnect: (peer) => transport.disconnect(peer),
         profile,
         room: { settings, seed: effectiveSeed() },
-        onChange: () => { if (!inRace) refreshLobby(); else updateLobbyUi(); },
+        onChange: () => {
+          if (!inRace) refreshLobby();
+          else updateLobbyUi();
+          if (tournament) showTourney(tournament.view());
+        },
+        onAllReady: () => nextMap(),
       });
       lobbyUi.setStatus('Pokój gotowy. Wyślij znajomym kod albo link.');
       refreshLobby();
@@ -319,7 +330,7 @@ const clientHandlers = {
     settings = sanitizeSettings(m.settings);
     randomTrackSeed = String(m.seed ?? '');
     form.setValues(settings);
-    rebuildTrack();
+    rebuildTrack(m.tournament ? String(m.seed) : undefined);
     if (Math.abs(track.length - m.trackLength) > 0.5) {
       console.warn('Tor u klienta różni się od toru hosta', track.length, m.trackLength);
       lobbyUi.setStatus('Uwaga: tor może się różnić od toru hosta (inna przeglądarka?).');
@@ -327,7 +338,9 @@ const clientHandlers = {
     const humans = (Array.isArray(m.humans) ? m.humans : []).slice(0, MAX_RACERS)
       .map((h) => ({ id: String(h.id), name: sanitizeName(h.name, 'Gracz'), color: KART_COLORS.includes(h.color) ? h.color : KART_COLORS[0] }));
     if (!humans.some((h) => h.id === localId)) return; // nie jedziemy w tym wyścigu
-    const g = createGame({ track, settings, humans, seed: String(m.gameSeed) });
+    const roster = m.tournament ? sanitizeRoster(m.tournament.roster) : null;
+    if (!roster) tourneyView = null;
+    const g = createGame({ track, settings, humans, seed: String(m.gameSeed), roster });
     sim = createClientSim(g, localId);
     beginRace(g);
   },
@@ -335,7 +348,11 @@ const clientHandlers = {
     if (!inRace || !sim) return;
     handleEvents(sim.onSnapshot(m));
   },
-  abort() { if (inRace) enterLobby(); },
+  abort() {
+    tourneyView = null;
+    if (inRace) enterLobby();
+  },
+  tourney(view) { showTourney(view); },
   reject(m) {
     const text = {
       full: 'Pokój jest pełny.',
@@ -353,6 +370,7 @@ function leaveRoom(status, closeTransport = true) {
   roomCode = '';
   lobbyPlayers = [];
   hostRacing = false;
+  tournament = tourneyView = null;
   history.replaceState(null, '', location.pathname);
   lobbyUi.setStatus(status ?? '');
   enterLobby();
@@ -388,7 +406,6 @@ function beginRace(g) {
 
 // Start (solo/host). Ludzie na polach w kolejności losowej (z seeda).
 function startRace() {
-  rebuildTrack();
   const gameSeed = randomSeed();
   const rng = createRng(deriveSeed(gameSeed, 'grid'));
   const humans = lobbyHumans();
@@ -396,9 +413,94 @@ function startRace() {
     const j = rng.int(0, i);
     [humans[i], humans[j]] = [humans[j], humans[i]];
   }
+  if (settings.gameMode === 'tournament') {
+    // Skład zamrożony na cały turniej (kolejność pól = kolejność z losowania).
+    tournament = createTournament({ seed: effectiveSeed(), mapCount: settings.mapCount, roster: buildRoster(settings, humans) });
+    host?.setTournament(tournament);
+    startMap();
+    return;
+  }
+  endTournament();
+  rebuildTrack();
   const g = createGame({ track, settings, humans, seed: gameSeed });
   if (mode === 'host') host.startRace({ settings, seed: effectiveSeed(), gameSeed, humans, trackLength: track.length });
   beginRace(g);
+}
+
+// Bieżąca mapa turnieju: tor z seeda mapy, zamrożony skład; za graczy,
+// którzy wyszli, jedzie bot.
+function startMap() {
+  const seed = tournament.mapSeed(tournament.index);
+  rebuildTrack(seed);
+  const gameSeed = randomSeed();
+  const g = createGame({ track, settings, humans: [], seed: gameSeed, roster: tournament.roster });
+  const view = tournament.view();
+  for (const r of view.table) if (r.left) g.takeOver(r.id);
+  const humans = tournament.roster.filter((r) => r.isHuman && !view.table.find((x) => x.id === r.id).left)
+    .map(({ id, name, color }) => ({ id, name, color }));
+  tourneyView = view;
+  if (mode === 'host') {
+    host.startRace({
+      settings, seed, gameSeed, humans, trackLength: track.length,
+      tournament: { index: tournament.index, count: tournament.count, roster: tournament.roster },
+    });
+    host.sendTourney();
+  }
+  beginRace(g);
+}
+
+// Następna mapa (wszyscy gotowi albo "Start mimo wszystko").
+function nextMap() {
+  if (tournament?.phase !== 'between') return;
+  tournament.nextMap();
+  startMap();
+}
+
+function endTournament() {
+  tournament = tourneyView = null;
+  host?.setTournament(null);
+}
+
+// Nowy widok turnieju: zapamiętaj i odśwież okno wyników / tabelę Tab.
+function showTourney(view) {
+  tourneyView = view;
+  hud.updateTournament(view);
+  if (!$('tabBoard').hidden) hud.showTabBoard(view, localId);
+}
+
+// Gotowość lokalnego gracza między mapami.
+function readyUp() {
+  if (mode === 'client') client.sendReady();
+  else if (mode === 'host') host.setReady(localId); // sesja rozgłasza i woła onAllReady
+  else if (tournament?.setReady(localId)) {
+    showTourney(tournament.view());
+    if (tournament.allReady()) nextMap();
+  }
+}
+
+// Opcje turnieju dla okna wyników (null = pojedynczy wyścig).
+function tourOptions() {
+  if (!tourneyView) return null;
+  return {
+    view: tourneyView,
+    isHost: mode !== 'client',
+    onReady: readyUp,
+    onForce: nextMap,
+    onQuit: () => {
+      endTournament();
+      if (mode === 'client') enterLobby();
+      else finishToLobby();
+    },
+  };
+}
+
+// Roster turnieju od hosta (niezaufany): id unikalne, ≤ MAX_RACERS.
+function sanitizeRoster(raw) {
+  const seen = new Set();
+  const list = (Array.isArray(raw) ? raw : []).slice(0, MAX_RACERS)
+    .map((r) => ({ id: String(r?.id ?? ''), name: sanitizeName(r?.name, 'Gracz'), color: KART_COLORS.includes(r?.color) ? r.color : KART_COLORS[0], isHuman: !!r?.isHuman }))
+    .filter((r) => r.id && !seen.has(r.id) && seen.add(r.id));
+  return list.length ? list : null;
 }
 
 // Menu w wyścigu (Esc). Solo: pauza. W sieci gra toczy się dalej.
@@ -418,8 +520,20 @@ function finishToLobby() {
 }
 
 $('startRace').addEventListener('click', startRace);
+
+// Tab (trzymany) w wyścigu turniejowym: tabela turnieju. Poza wyścigiem
+// i w polach formularza Tab działa normalnie (fokus).
+const typing = (t) => t instanceof HTMLElement && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName);
+window.addEventListener('keydown', (e) => {
+  if (e.code !== 'Tab' || !inRace || !tourneyView || typing(e.target)) return;
+  e.preventDefault();
+  if (!e.repeat) hud.showTabBoard(tourneyView, localId);
+});
+window.addEventListener('keyup', (e) => { if (e.code === 'Tab') hud.hideTabBoard(); });
+window.addEventListener('blur', () => hud.hideTabBoard());
 $('resume').addEventListener('click', () => setMenu(false));
 $('quitRace').addEventListener('click', () => {
+  if (mode !== 'client') endTournament();
   if (mode === 'host') {
     host.endRace(true);
     enterLobby();
@@ -433,7 +547,7 @@ $('newTrack').addEventListener('click', () => {
   roomChanged();
 });
 $('pinSeed').addEventListener('click', () => {
-  const next = applySettingChange(settings, 'trackSeed', track.seed);
+  const next = applySettingChange(settings, 'trackSeed', effectiveSeed());
   if (next) {
     settings = next;
     form.setValues(settings);
@@ -459,7 +573,14 @@ function handleEvents(events) {
     if (e.type === 'finalLap') audio.play('finalLap');
     if (e.type === 'finish') audio.play('finish');
   }
-  if (events.some((e) => e.type === 'end')) resultsIn = RACE.resultsDelaySeconds;
+  if (events.some((e) => e.type === 'end')) {
+    resultsIn = RACE.resultsDelaySeconds;
+    if (tournament) {
+      tournament.recordRace(game.race);
+      tourneyView = tournament.view();
+      host?.sendTourney();
+    }
+  }
 }
 
 // Stan do rysowania: interpolacja między krokami fizyki (płynność przy
@@ -576,7 +697,8 @@ renderer.setAnimationLoop(() => {
       resultsIn -= dt;
       if (resultsIn <= 0) {
         resultsIn = null;
-        hud.showResults(game.race, localId, finishToLobby);
+        hud.hideTabBoard();
+        hud.showResults(game.race, localId, finishToLobby, tourOptions());
       }
     }
     hud.update(game.race, localId, dt, game.items);

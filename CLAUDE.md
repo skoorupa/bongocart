@@ -34,7 +34,7 @@ Gwiazda, host autorytatywny. Klient wysyła sterowanie z numerami kroków (`seq`
 
 ## Stan (2026-11-01)
 
-Zrobione etapy 1–8 ze specyfikacji (generator torów, fizyka+kamera, okrążenia/HUD, boty, przedmioty, multiplayer PeerJS, przejęcie rozłączonego gracza przez bota, dźwięk/efekty/presety) oraz: nicki nad kartami, tabela pozycji na żywo, tory z wcięciami (płaty — `TRACK.lobeHarmonics`), silnik z biegami, przeszkody na torze (słupki slalom/rządek na środku i progi — `OBSTACLES`; część toru z seeda, więc bez zmian w protokole poza `bumpTime`).
+Zrobione etapy 1–8 ze specyfikacji (generator torów, fizyka+kamera, okrążenia/HUD, boty, przedmioty, multiplayer PeerJS, przejęcie rozłączonego gracza przez bota, dźwięk/efekty/presety) oraz: nicki nad kartami, tabela pozycji na żywo, tory z wcięciami (płaty — `TRACK.lobeHarmonics`), silnik z biegami, przeszkody na torze (słupki slalom/rządek na środku i progi — `OBSTACLES`; część toru z seeda, więc bez zmian w protokole poza `bumpTime`), turniej (`tournament.js`: N map, punkty `TOURNAMENT.points`, gotowość między mapami, tabela pod Tab; stan trzyma host/solo, klienci dostają `tourney`).
 
 Znane ograniczenia (świadome, opisane w README): wyjście hosta kończy grę; karta hosta musi być na wierzchu; brak serwera TURN; powracający gracz nie odzyskuje karta.
 
