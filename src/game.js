@@ -101,7 +101,7 @@ export function createGame({ track, settings, humans, seed, roster: fixed = null
             stats,
             speedMul: speedMulFor(r, leaderProgress),
             slot: items.slots.get(r.id),
-            hazards: items.bananas,
+            hazards: [...items.bananas, ...(track.oils ?? [])], // omijają tylko boty z dodge
             obstacles: track.posts,
             // Odstępy [m] do sąsiadów w kolejności (null = brak sąsiada).
             gapAhead: place > 0 ? order[place - 1].progress - r.progress : null,

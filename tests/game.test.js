@@ -7,7 +7,7 @@ import { createDriver } from '../src/ai.js';
 import { kartStats } from '../src/physics.js';
 import { defaultSettings } from '../src/settings.js';
 import { collideKarts, createKartState } from '../src/physics.js';
-import { PHYSICS, MAX_RACERS, KART, RACE, TRACK, AI, OBSTACLES } from '../src/config.js';
+import { PHYSICS, MAX_RACERS, KART, RACE, TRACK, AI, OBSTACLES, ITEMS } from '../src/config.js';
 
 const DT = PHYSICS.fixedDt;
 const track = generateTrack({ seed: 'bots', size: 'small', difficulty: 'hard', theme: 'random', itemFrequency: 'none' });
@@ -203,4 +203,38 @@ test('wyścig botów z monetami: liczniki monet rosną i zgadzają się ze zdarz
   assert.ok(total > 0);
   assert.equal(total, events);
   assert.ok(game.race.racers.every((r) => r.coins <= t.coins.length)); // 1 okrążenie: każda moneta raz
+});
+
+test('boty używają buta i klucza, wyścig się kończy', () => {
+  const t = generateTrack({ seed: 'kick', size: 'small', difficulty: 'medium', theme: 'random', itemFrequency: 'often' });
+  const game = createGame({ track: t, settings: settingsWith({ minRacers: 6, laps: 1, itemFrequency: 'often', enabledItems: ['boot', 'wrench'] }), humans: [], seed: 'k' });
+  const used = new Set(), hits = new Set();
+  let ended = false;
+  for (let i = 0; i < 150 / DT && !ended; i++) {
+    for (const e of game.step(DT, NONE)) {
+      if (e.type === 'use') used.add(e.item);
+      if (e.type === 'hit') hits.add(e.what);
+      if (e.type === 'end') ended = true;
+    }
+  }
+  assert.ok(ended);
+  assert.deepEqual([...used].sort(), ['boot', 'wrench']);
+  assert.ok(hits.size > 0, 'żadnego trafienia');
+});
+
+test('bot: but tylko z bliska, klucz w zasięgu', () => {
+  const stats = kartStats('150cc');
+  const decide = (item, gapAhead) => {
+    const d = createDriver(track, 'medium', 'dec');
+    const kart = createKartState(track, 0);
+    const ctx = { others: [], stats, speedMul: 1, slot: { item, roll: 0 }, gapAhead, gapBehind: null, hazards: [], obstacles: [] };
+    let used = false;
+    // Po maks. zwłoce losowej, ale przed maxHoldSeconds.
+    for (let t = 0; t < ITEMS.ai.holdSeconds[1] + 0.5; t += DT) used ||= d.control(kart, ctx, DT).item;
+    return used;
+  };
+  assert.equal(decide('boot', ITEMS.ai.bootRange + 30), false);
+  assert.equal(decide('boot', ITEMS.ai.bootRange - 5), true);
+  assert.equal(decide('wrench', ITEMS.ai.wrenchRange + 30), false);
+  assert.equal(decide('wrench', ITEMS.ai.wrenchRange - 20), true);
 });

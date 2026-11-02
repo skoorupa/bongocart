@@ -111,6 +111,8 @@ export function createDriver(track, difficulty, seed) {
     switch (slot.item) {
       case 'rocket': return ctx.gapAhead !== null && ctx.gapAhead < a.rocketRange;
       case 'banana': return ctx.gapBehind !== null && ctx.gapBehind < a.bananaBehind;
+      case 'boot': return ctx.gapAhead !== null && ctx.gapAhead < a.bootRange;
+      case 'wrench': return ctx.gapAhead !== null && ctx.gapAhead < a.wrenchRange;
       case 'boost': return minRadiusAhead(i, 0, a.boostLookMeters) > a.boostStraightRadius;
       default: return true; // tarcza: od razu
     }
@@ -118,7 +120,7 @@ export function createDriver(track, difficulty, seed) {
 
   return {
     // ctx: {others: [stany innych kartów], stats, speedMul (gumka 0..1+),
-    //       slot {item, roll}, gapAhead, gapBehind [m], hazards [{x, z}] (banany),
+    //       slot {item, roll}, gapAhead, gapBehind [m], hazards [{x, z}] (banany, plamy oleju),
     //       obstacles [{x, z}] (słupki toru)}
     control(kart, ctx, dt) {
       t += dt;
