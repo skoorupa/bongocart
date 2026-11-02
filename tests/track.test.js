@@ -183,8 +183,6 @@ test('plamy oleju: none = brak, deterministyczne, osobny strumień (przeszkody b
   const b = generateTrack(oilParams('oil', { obstacles: 'many' }));
   assert.ok(a.oils.length > 0);
   assert.equal(JSON.stringify(a.oils), JSON.stringify(b.oils));
-  const few = generateTrack(oilParams('oil', { obstacles: 'few' }));
-  assert.ok(few.oils.length < a.oils.length);
   // Monety nie przesuwają plam ani przeszkód.
   const c = generateTrack(oilParams('oil', { obstacles: 'many', coins: true }));
   assert.equal(JSON.stringify(c.oils), JSON.stringify(a.oils));

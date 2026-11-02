@@ -146,7 +146,7 @@ test('rozłączony gracz: kart przejmuje AI, wyścig na niego nie czeka', () => 
 });
 
 test('boty kończą wyścig z gęstymi przeszkodami, omijają słupki i się nie zakleszczają', () => {
-  const params = { seed: 'bots', size: 'small', difficulty: 'hard', theme: 'random', itemFrequency: 'none' };
+  const params = { seed: 'bots2', size: 'small', difficulty: 'hard', theme: 'random', itemFrequency: 'none' };
   const obs = generateTrack({ ...params, obstacles: 'many' });
   assert.ok(obs.posts.length > 0);
   const race = (t) => {

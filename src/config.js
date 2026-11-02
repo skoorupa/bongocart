@@ -333,7 +333,7 @@ export const OBSTACLES = {
     seconds: 1.3, // [s] poślizg (odliczany od ostatniego kontaktu z plamą)
     grip: 2.2, // [1/s] przyczepność boczna w poślizgu (normalnie KART.grip)
     steerMul: 0.45, // mnożnik skrętu w poślizgu
-    clearance: 18, // [m] odstęp (wzdłuż toru) od skrzynek i przeszkód
+    clearance: 40, // [m] odstęp (wzdłuż toru) od skrzynek i przeszkód (poślizg ~30 m nie kończy się na słupkach)
     edgeMargin: 0.5, // [m] plama nie wystaje za jezdnię
     color: 0x111116, sheen: 0x5b4a8a, // kolor plamy i połysku
   },

@@ -79,7 +79,7 @@ export function createInputQueue() {
 }
 
 // --- Stan karta jako tablica (kolejność = KART_FIELDS + dryf + nawierzchnia).
-const KART_FIELDS = ['x', 'z', 'heading', 'vx', 'vz', 'speed', 'steer', 'boostTime', 'spinTime', 'shieldTime', 'trackS', 'lateral', 'wallHit', 'bumpTime'];
+const KART_FIELDS = ['x', 'z', 'heading', 'vx', 'vz', 'speed', 'steer', 'boostTime', 'spinTime', 'shieldTime', 'trackS', 'lateral', 'wallHit', 'bumpTime', 'knockTime', 'brokenTime', 'oilTime'];
 const SURFACES = ['road', 'kerb', 'offroad'];
 
 export function encodeKart(k) {
