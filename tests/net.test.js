@@ -352,3 +352,52 @@ test('tourney ze śmieciami: sanityzacja', () => {
   }
   assert.deepEqual(v.ready, []);
 });
+
+// --- Snapshot: efekty, pociski, monety.
+test('snapshot przenosi efekty karta, pociski, monety i coinTaken', async () => {
+  const { makeSnapshot, applyRaceAndItems, encodeKart, applyKart } = await import('../src/net/protocol.js');
+  const settings = { ...defaultSettings(), minRacers: 2, coins: true, obstacles: 'many' };
+  const track = generateTrack(trackParamsFromSettings(settings, 'snap'));
+  assert.ok(track.coins.length > 1);
+  const host = createGame({ track, settings, humans: [], seed: 's' });
+  const client = createGame({ track, settings, humans: [], seed: 's' });
+  const [r0, r1] = host.race.racers;
+  Object.assign(host.karts.get(r0.id), { knockTime: 0.4, brokenTime: 2.5, oilTime: 0.9 });
+  r1.coins = 7;
+  host.items.coins[1].respawn = 0.5;
+  host.items.coinTaken.get(r1.id).add(0).add(1);
+  host.items.projectiles.push({ id: 9, kind: 'boot', x: 1, z: 2, heading: 0.5 });
+  const snap = JSON.parse(JSON.stringify(makeSnapshot(host, 1, {}, [])));
+  applyRaceAndItems(client, snap);
+  client.race.racers.forEach((r, i) => applyKart(client.karts.get(r.id), snap.karts[i]));
+  const k = client.karts.get(r0.id);
+  assert.deepEqual([k.knockTime, k.brokenTime, k.oilTime], [0.4, 2.5, 0.9]);
+  assert.equal(client.race.racers[1].coins, 7);
+  assert.equal(client.items.coins[1].respawn, 0.5);
+  assert.deepEqual([...client.items.coinTaken.get(r1.id)].sort(), [0, 1]);
+  assert.deepEqual(client.items.projectiles, [{ id: 9, kind: 'boot', x: 1, z: 2, heading: 0.5 }]);
+  assert.ok(encodeKart(k).length > 0);
+});
+
+test('applyRaceAndItems: nieznany pocisk i za długie tablice monet nie psują stanu', async () => {
+  const { makeSnapshot, applyRaceAndItems } = await import('../src/net/protocol.js');
+  const settings = { ...defaultSettings(), minRacers: 2, coins: true };
+  const track = generateTrack(trackParamsFromSettings(settings, 'snap2'));
+  const host = createGame({ track, settings, humans: [], seed: 's' });
+  const client = createGame({ track, settings, humans: [], seed: 's' });
+  const snap = JSON.parse(JSON.stringify(makeSnapshot(host, 1, {}, [])));
+  snap.items.projectiles.push([5, 'laser', 0, 0, 0]);
+  snap.items.coins.push(1, 1, 1);
+  snap.items.coinTaken[0] = [0, 99999, 'x', -1];
+  applyRaceAndItems(client, snap);
+  assert.equal(client.items.projectiles.length, 0);
+  assert.equal(client.items.coins.length, track.coins.length);
+  assert.deepEqual([...client.items.coinTaken.get(client.race.racers[0].id)], [0]);
+});
+
+test('sanitizeTourneyView: punkty mapy do points[0] + maxCoinPoints', async () => {
+  const { TOURNAMENT } = await import('../src/config.js');
+  const v = sanitizeTourneyView({ index: 0, count: 2, phase: 'between', table: [{ id: 'a', name: 'A', points: 19, lastPoints: 19 }, { id: 'b', name: 'B', points: 1e9, lastPoints: 1e9 }], ready: [] });
+  assert.equal(v.table[0].lastPoints, 19);
+  assert.equal(v.table[1].lastPoints, TOURNAMENT.points[0] + TOURNAMENT.maxCoinPoints);
+});

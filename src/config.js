@@ -515,7 +515,7 @@ export const RACE = {
 
 // Wersja gry: klient z inną wersją niż host nie dołączy (inny protokół
 // albo fizyka). Zmieniaj przy każdym wdrożeniu, które zmienia grę.
-export const GAME_VERSION = '0.12.0';
+export const GAME_VERSION = '0.13.0';
 
 // ---------------------------------------------------------------------
 // Dźwięk (Web Audio, generowany). Głośności 0..1, częstotliwości [Hz].

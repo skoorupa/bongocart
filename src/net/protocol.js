@@ -96,7 +96,7 @@ export function applyKart(k, a) {
 }
 
 // --- Snapshot: wszystko, czego klient potrzebuje do rysowania i HUD.
-const RACER_FIELDS = ['isHuman', 'takenOver', 'started', 'lap', 'nextCp', 'lapStartTime', 'lapTimes', 'bestLap', 'finishTime', 'progress', 'wrongWayTime'];
+const RACER_FIELDS = ['isHuman', 'takenOver', 'started', 'lap', 'nextCp', 'lapStartTime', 'lapTimes', 'bestLap', 'finishTime', 'progress', 'wrongWayTime', 'coins'];
 
 // ht: czas symulacji hosta [s] (do interpolacji), acks: {id: seq}.
 export function makeSnapshot(game, ht, acks, events) {
@@ -112,6 +112,9 @@ export function makeSnapshot(game, ht, acks, events) {
     items: {
       boxes: items.boxes.map((b) => round(b.respawn)),
       bananas: items.bananas.map((b) => [b.id, round(b.x), round(b.z)]),
+      coins: items.coins.map((c) => round(c.respawn)),
+      // Monety zebrane na bieżącym okrążeniu (kolejność race.racers).
+      coinTaken: race.racers.map((r) => [...items.coinTaken.get(r.id)]),
       projectiles: items.projectiles.map((r) => [r.id, r.kind, round(r.x), round(r.z), round(r.heading)]),
       slots: race.racers.map((r) => {
         const s = items.slots.get(r.id);
@@ -127,6 +130,11 @@ export function applyRaceAndItems(game, snap) {
   Object.assign(race, snap.race);
   race.racers.forEach((r, i) => RACER_FIELDS.forEach((f, j) => { r[f] = snap.racers[i][j]; }));
   snap.items.boxes.forEach((v, i) => { if (items.boxes[i]) items.boxes[i].respawn = v; });
+  (snap.items.coins ?? []).forEach((v, i) => { if (items.coins[i]) items.coins[i].respawn = v; });
+  race.racers.forEach((r, i) => {
+    const valid = (snap.items.coinTaken?.[i] ?? []).filter((c) => Number.isInteger(c) && c >= 0 && c < items.coins.length);
+    items.coinTaken.set(r.id, new Set(valid));
+  });
   items.bananas = snap.items.bananas.map(([id, x, z]) => ({ id, x, z }));
   // Nieznany rodzaj pocisku (np. inna wersja) — pomijamy.
   items.projectiles = snap.items.projectiles
@@ -142,7 +150,7 @@ export function applyRaceAndItems(game, snap) {
 // przycinamy typy i rozmiary. null = nie da się użyć.
 const TOURNEY_PHASES = ['racing', 'between', 'done'];
 const MAX_MAPS = SETTINGS_SCHEMA.find((e) => e.key === 'mapCount').max;
-const MAX_MAP_POINTS = TOURNAMENT.points[0]; // najwięcej punktów za jedną mapę
+const MAX_MAP_POINTS = TOURNAMENT.points[0] + TOURNAMENT.maxCoinPoints; // najwięcej punktów za jedną mapę (miejsce + monety)
 
 export function sanitizeTourneyView(raw) {
   if (!raw || typeof raw !== 'object') return null;
