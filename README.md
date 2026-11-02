@@ -31,11 +31,28 @@ Po zmianie gry podbij `GAME_VERSION` w `src/config.js` — gracz ze starą wersj
 
 Na torze mogą stać przeszkody (ustawienie „Przeszkody na torze”: Brak / Mało / Dużo): grupy słupków na środku jezdni (slalom albo rządek; uderzenie zabiera ok. 30% prędkości, kart prześlizguje się obok) — oraz szerokie progi zwalniające (ok. 70% szerokości toru, z wolnym pasem z boku) (−15% przy szybkiej jeździe). Zawsze zostaje szeroki wolny przejazd.
 
+## Przedmioty, olej i monety
+
+Skrzynki dają losowy przedmiot (prowadzący częściej obronę, ostatni — atak):
+
+| Przedmiot | Działanie |
+|---|---|
+| 🚀 Pocisk | leci do kierowcy przed Tobą, trafiony się obraca (zasięg 220 m / 5 s) |
+| 🍌 Banan | zostaje za kartem; kto wjedzie, ten się obraca (znika po 45 s) |
+| ⚡ Turbo | chwilowe przyspieszenie |
+| 🛡️ Tarcza | blokuje jedno trafienie (8 s) |
+| 👢 But | rzut prosto przed siebie (35 m) — kto oberwie, dostaje kopniaka w bok i ślizga się |
+| 🔧 Zepsute koła | leci do kierowcy przed Tobą (160 m); trafiony przez 4 s ma gaz do dechy i nie może hamować |
+
+**Plamy oleju** (ustawienie „Przeszkody na torze”) — kto w nie wjedzie, przez chwilę ma poślizg i słabszy skręt. Obok plamy zawsze jest wolny przejazd.
+
+**Monety** (ustawienie „Monety na torze”) — rzędy złotych monet. Zebrana moneta znika na 1 s; tę samą monetę można wziąć raz na okrążenie (już zebrane widać półprzezroczyste). Licznik w HUD: zebrane / możliwe. W turnieju monety dają premię proporcjonalną: komplet = +6 pkt, połowa = +3 pkt — ostatni nie przeskoczy czołówki samymi monetami.
+
 ## Turniej
 
 W lobby ustaw **Tryb gry: Turniej** i **Liczbę map** (domyślnie 10; okrążenia z ustawienia „Liczba okrążeń”, domyślnie 5).
 Tory turnieju generują się z seeda (ten sam seed = te same mapy). Za miejsce na każdej mapie są punkty
-15-12-10-8-6-4-2-1; przy remisie wygrywa mniejszy łączny czas (kto nie dojechał, dostaje czas trwania wyścigu).
+15-12-10-8-6-4-2-1 plus premia za monety (do +6); przy remisie wygrywa mniejszy łączny czas (kto nie dojechał, dostaje czas trwania wyścigu).
 Po każdej mapie widać tabelę turnieju; każdy klika **Gotowy**, a host może **Start mimo wszystko**.
 W turnieju wyścig trwa, aż dojadą wszyscy (także boty; limit 30 s od pierwszego na mecie). W trakcie wyścigu tabela jest pod klawiszem **Tab**. Gracz, który wyjdzie, zostaje w tabeli — dalej jedzie za niego bot.
 
