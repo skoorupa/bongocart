@@ -11,6 +11,14 @@
 import { TOURNAMENT } from './config.js';
 import { standings } from './race.js';
 
+// Monety możliwe do zebrania w wyścigu: każda raz na okrążenie.
+export const coinsPossible = (track, laps) => (track.coins?.length ?? 0) * laps;
+
+// Premia za monety: proporcjonalna do zebranych, komplet = maxCoinPoints.
+// Dzięki maksimum ostatni nie przeskoczy czołówki samymi monetami.
+export const coinBonus = (coins, possible) =>
+  (possible > 0 ? Math.round((TOURNAMENT.maxCoinPoints * Math.min(coins, possible)) / possible) : 0);
+
 // Seed toru mapy i (0..count-1) — ten sam seed turnieju = te same tory.
 export const mapSeedOf = (seed, i) => `${seed}-${i + 1}`;
 
@@ -28,13 +36,14 @@ export function createTournament({ seed, mapCount, roster }) {
 
     mapSeed: (i) => mapSeedOf(seed, i),
 
-    // Wyniki zakończonej mapy: punkty za miejsce, czas mety (DNF = czas
+    // Wyniki zakończonej mapy: punkty za miejsce + premia za monety
+    // (coinsPossible = coinsPossible(track, laps)), czas mety (DNF = czas
     // trwania wyścigu).
-    recordRace(race) {
+    recordRace(race, possibleCoins = 0) {
       standings(race).forEach((r, place) => {
         const row = rows.get(r.id);
         if (!row) return;
-        row.lastPoints = TOURNAMENT.points[place] ?? 0;
+        row.lastPoints = (TOURNAMENT.points[place] ?? 0) + coinBonus(r.coins ?? 0, possibleCoins);
         row.points += row.lastPoints;
         row.time += r.finishTime ?? race.time;
       });

@@ -6,7 +6,7 @@ import { createItems, stepItems, rollItem } from '../src/items.js';
 import { createKartState, stepKart, kartStats } from '../src/physics.js';
 import { createGame } from '../src/game.js';
 import { defaultSettings } from '../src/settings.js';
-import { ITEMS, KART, PHYSICS } from '../src/config.js';
+import { ITEMS, KART, PHYSICS, COINS } from '../src/config.js';
 
 const DT = PHYSICS.fixedDt;
 const track = generateTrack({ seed: 'items', size: 'small', difficulty: 'medium', theme: 'random', itemFrequency: 'often' });
@@ -234,4 +234,53 @@ test('banan znika po lifetime', () => {
   assert.equal(items.bananas.length, 1);
   for (let t = 0; t < ITEMS.banana.lifetime + DT; t += DT) stepItems(items, ctx, NOBODY, DT);
   assert.equal(items.bananas.length, 0);
+});
+
+// --- Monety.
+const coinTrack = generateTrack({ seed: 'items', size: 'small', difficulty: 'medium', theme: 'random', itemFrequency: 'often', coins: true });
+function coinSetup() {
+  const items = createItems({ track: coinTrack, settings: settings(), seed: 'x', racerIds: ['a', 'b'] });
+  const karts = new Map([['a', createKartState(coinTrack, 0)], ['b', createKartState(coinTrack, 1)]]);
+  const laps = new Map([['a', 0], ['b', 0]]);
+  const ctx = { track: coinTrack, karts, order: ['b', 'a'], finished: new Set(), laps };
+  return { items, karts, ctx, laps };
+}
+const coinEvents = (ev, id) => ev.filter((e) => e.type === 'coin' && e.id === id).length;
+const wait = (items, ctx, seconds) => { for (let t = 0; t < seconds; t += DT) stepItems(items, ctx, NOBODY, DT); };
+
+test('moneta: +1, znika na 1 s, drugi raz na tym okrążeniu nic, na następnym znowu', () => {
+  const { items, karts, ctx, laps } = coinSetup();
+  const c = coinTrack.coins[0], a = karts.get('a');
+  karts.get('b').x += 500; // b daleko
+  Object.assign(a, { x: c.x, z: c.z });
+  assert.equal(coinEvents(stepItems(items, ctx, NOBODY, DT), 'a'), 1);
+  assert.ok(items.coins[0].respawn > 0 && items.coins[0].respawn <= COINS.respawnSeconds);
+  Object.assign(a, { x: a.x + 500 });
+  wait(items, ctx, COINS.respawnSeconds + DT);
+  assert.equal(items.coins[0].respawn, 0);
+  Object.assign(a, { x: c.x, z: c.z });
+  assert.equal(coinEvents(stepItems(items, ctx, NOBODY, DT), 'a'), 0); // to samo okrążenie
+  assert.equal(items.coins[0].respawn, 0); // moneta zostaje dla innych
+  laps.set('a', 1);
+  assert.equal(coinEvents(stepItems(items, ctx, NOBODY, DT), 'a'), 1); // nowe okrążenie
+});
+
+test('moneta w trakcie odradzania nie jest zbierana i nie trafia do coinTaken', () => {
+  const { items, karts, ctx } = coinSetup();
+  const c = coinTrack.coins[0];
+  karts.get('b').x += 500;
+  items.coins[0].respawn = 0.5;
+  Object.assign(karts.get('a'), { x: c.x, z: c.z });
+  assert.equal(coinEvents(stepItems(items, ctx, NOBODY, DT), 'a'), 0);
+  assert.equal(items.coinTaken.get('a').has(0), false);
+});
+
+test('ukończony nie zbiera monet; brak monet na torze = brak stanu', () => {
+  const { items, karts, ctx } = coinSetup();
+  const c = coinTrack.coins[0];
+  karts.get('b').x += 500;
+  ctx.finished.add('a');
+  Object.assign(karts.get('a'), { x: c.x, z: c.z });
+  assert.equal(coinEvents(stepItems(items, ctx, NOBODY, DT), 'a'), 0);
+  assert.equal(createItems({ track, settings: settings(), seed: 'x', racerIds: ['a'] }).coins.length, 0);
 });

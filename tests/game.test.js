@@ -192,3 +192,15 @@ test('bot omijający wolny kart nie skręca w słupek', () => {
   }
   assert.ok(out.steer < 0, `steer ${out.steer} (+ = w prawo, w słupek)`);
 });
+
+test('wyścig botów z monetami: liczniki monet rosną i zgadzają się ze zdarzeniami', () => {
+  const t = generateTrack({ seed: 'coins', size: 'small', difficulty: 'easy', theme: 'random', itemFrequency: 'none', coins: true });
+  assert.ok(t.coins.length > 0);
+  const game = createGame({ track: t, settings: settingsWith({ minRacers: 4, laps: 1, itemFrequency: 'none', coins: true }), humans: [], seed: 'c' });
+  let events = 0;
+  for (let i = 0; i < 120 / DT && game.race.phase !== 'finished'; i++) events += game.step(DT, NONE).filter((e) => e.type === 'coin').length;
+  const total = game.race.racers.reduce((s, r) => s + r.coins, 0);
+  assert.ok(total > 0);
+  assert.equal(total, events);
+  assert.ok(game.race.racers.every((r) => r.coins <= t.coins.length)); // 1 okrążenie: każda moneta raz
+});

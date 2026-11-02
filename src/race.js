@@ -39,6 +39,7 @@ export function createRace({ track, laps, racers, waitForAll = false }) {
       progress: 0, // [m] dystans od startu (do kolejności)
       wrongWayTime: 0,
       takenOver: false, // rozłączony gracz, jedzie za niego AI
+      coins: 0, // zebrane monety (premia w turnieju: tournament.js)
     })),
   };
 }

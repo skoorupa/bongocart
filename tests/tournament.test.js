@@ -1,7 +1,7 @@
 // Testy turnieju: punktacja, DNF, remisy, seedy map, gotowość, fazy.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createTournament, mapSeedOf } from '../src/tournament.js';
+import { createTournament, mapSeedOf, coinBonus, coinsPossible } from '../src/tournament.js';
 import { TOURNAMENT, PHYSICS } from '../src/config.js';
 import { createGame, buildRoster } from '../src/game.js';
 import { generateTrack } from '../src/track/generator.js';
@@ -117,4 +117,24 @@ test('createGame z rosterem: człowiek, który wyszedł, jedzie botem', () => {
   for (let i = 0; i < 6 / DT; i++) game.step(DT, new Map());
   assert.ok(game.karts.get('p1').speed > 5, `${game.karts.get('p1').speed}`);
   assert.equal(game.race.racers.find((r) => r.id === 'p1').takenOver, true);
+});
+
+// --- Premia za monety.
+test('coinBonus: 0 / połowa / komplet → 0 / 3 / 6; brak możliwych → 0', () => {
+  assert.equal(TOURNAMENT.maxCoinPoints, 6);
+  assert.deepEqual([coinBonus(0, 120), coinBonus(60, 120), coinBonus(120, 120), coinBonus(5, 0)], [0, 3, 6, 0]);
+  assert.equal(coinsPossible({ coins: new Array(25) }, 5), 125);
+});
+
+test('recordRace: punkty = miejsce + premia; ostatni z kompletem monet < 4. miejsce bez monet', () => {
+  const ids = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'];
+  const t = createTournament({ seed: 's', mapCount: 2, roster: ids.map(B) });
+  const r = race(100, ids.map((id, i) => [id, 50 + i]));
+  r.racers.forEach((x) => { x.coins = x.id === 'p8' ? 100 : 0; });
+  r.racers[1].coins = 50; // p2: połowa
+  t.recordRace(r, 100);
+  const tab = Object.fromEntries(t.table().map((x) => [x.id, x]));
+  assert.equal(tab.p2.lastPoints, TOURNAMENT.points[1] + 3);
+  assert.equal(tab.p8.points, (TOURNAMENT.points[7] ?? 0) + TOURNAMENT.maxCoinPoints);
+  assert.ok(tab.p8.points < tab.p4.points, `${tab.p8.points} vs ${tab.p4.points}`);
 });

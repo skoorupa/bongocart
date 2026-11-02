@@ -22,7 +22,7 @@ import { createItemsView } from './itemsMesh.js';
 import { buildObstaclesVisual } from './track/obstacleMesh.js';
 import { createChaseCamera } from './camera.js';
 import { createGame, buildRoster } from './game.js';
-import { createTournament, mapSeedOf } from './tournament.js';
+import { createTournament, mapSeedOf, coinsPossible } from './tournament.js';
 import { spectateTargets, cycleSpectate } from './race.js';
 import { createHud } from './ui/hud.js';
 import { createAudio } from './audio.js';
@@ -595,7 +595,7 @@ function handleEvents(events) {
   if (events.some((e) => e.type === 'end')) {
     resultsIn = RACE.resultsDelaySeconds;
     if (tournament) {
-      tournament.recordRace(game.race);
+      tournament.recordRace(game.race, coinsPossible(game.track, game.race.laps));
       tourneyView = tournament.view();
       host?.sendTourney();
     }

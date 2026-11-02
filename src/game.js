@@ -119,7 +119,9 @@ export function createGame({ track, settings, humans, seed, roster: fixed = null
         karts: active,
         order: order.map((r) => r.id),
         finished: new Set(race.racers.filter((r) => r.finishTime !== null).map((r) => r.id)),
+        laps: new Map(race.racers.map((r) => [r.id, r.lap])),
       }, uses, dt);
+      for (const e of events) if (e.type === 'coin') race.racers.find((r) => r.id === e.id).coins++;
       return [...events, ...updateRace(race, dt, karts)];
     },
   };

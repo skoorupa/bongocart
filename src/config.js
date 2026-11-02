@@ -645,6 +645,7 @@ export const PRESETS = {
 // ---------------------------------------------------------------------
 export const TOURNAMENT = {
   points: [15, 12, 10, 8, 6, 4, 2, 1], // za miejsca 1..8; dalsze = 0
+  maxCoinPoints: 6, // premia za komplet monet na mapie (proporcjonalnie: tournament.js coinBonus)
   maxTotalSeconds: 1e6, // [s] górna granica łącznego czasu w wiadomości "tourney" (sanityzacja)
   modes: {
     race: { label: 'Pojedynczy wyścig' },

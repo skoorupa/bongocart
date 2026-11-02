@@ -13,7 +13,7 @@
 // Pociski (rocket, boot, wrench) to jeden mechanizm (pole kind); każdy
 // znika po ITEMS[kind].maxDistance albo lifetime.
 // =====================================================================
-import { ITEMS, KART } from './config.js';
+import { ITEMS, KART, COINS } from './config.js';
 import { createRng, deriveSeed } from './rng.js';
 import { applyBoost, spinOut, knockOut, breakWheels } from './physics.js';
 
@@ -32,6 +32,11 @@ export function createItems({ track, settings, seed, racerIds }) {
     // {id, kind, owner, target, s, lateral, x, z, heading, age, dist, homing}
     projectiles: [],
     slots: new Map(racerIds.map((id) => [id, { item: null, roll: 0 }])),
+    // Monety (pozycje w track.coins): respawn > 0 = zebrana, wraca po chwili.
+    coins: (track.coins ?? []).map(() => ({ respawn: 0 })),
+    // Monety zebrane przez zawodnika na bieżącym okrążeniu (indeksy) i to okrążenie.
+    coinTaken: new Map(racerIds.map((id) => [id, new Set()])),
+    coinLap: new Map(racerIds.map((id) => [id, 0])),
     nextId: 1,
     rng: createRng(deriveSeed(seed, 'items')),
   };
@@ -57,9 +62,10 @@ export function rollItem(items, place, total) {
   return items.enabled[items.enabled.length - 1];
 }
 
-// ctx: {track, karts: Map id->stan, order: [id wg kolejności], finished: Set id}
+// ctx: {track, karts: Map id->stan, order: [id wg kolejności], finished: Set id,
+//       laps: Map id->ukończone okrążenia (monety: raz na okrążenie)}
 // uses: Set id kierowców, którzy w tym kroku chcą użyć przedmiotu.
-// Zwraca zdarzenia: pickup, use, hit, blocked.
+// Zwraca zdarzenia: pickup, use, hit, blocked, coin.
 export function stepItems(items, ctx, uses, dt) {
   const events = [];
   const { track, karts, finished } = ctx;
@@ -98,6 +104,29 @@ export function stepItems(items, ctx, uses, dt) {
       break;
     }
   }
+
+  // --- Monety: znikają na chwilę dla wszystkich; jeden kart bierze tę samą
+  // monetę najwyżej raz na okrążenie.
+  for (const [id, taken] of items.coinTaken) {
+    const lap = ctx.laps?.get(id) ?? 0;
+    if (items.coinLap.get(id) !== lap) {
+      items.coinLap.set(id, lap);
+      taken.clear();
+    }
+  }
+  const coinR2 = (COINS.pickupRadius + KART.radius) ** 2;
+  items.coins.forEach((coin, i) => {
+    if (coin.respawn > 0) { coin.respawn = Math.max(0, coin.respawn - dt); return; }
+    const pos = track.coins[i];
+    for (const [id, k] of karts) {
+      const taken = items.coinTaken.get(id);
+      if (finished.has(id) || !taken || taken.has(i) || dist2(pos, k) > coinR2) continue;
+      taken.add(i);
+      coin.respawn = COINS.respawnSeconds;
+      events.push({ type: 'coin', id });
+      break;
+    }
+  });
 
   // --- Sloty, tarcze, użycie.
   for (const [id, slot] of items.slots) {
