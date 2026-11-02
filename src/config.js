@@ -57,6 +57,10 @@ export const KART = {
   wallHitMinSpeed: 2, // poniżej: tylko "ślizg" wzdłuż bandy
   // Obrót po trafieniu (banan, pocisk): brak kontroli, mocne hamowanie.
   spin: { seconds: 1.1, drag: 26, turns: 2 },
+  // Kopniak (but): pchnięcie w bok, potem chwila poślizgu bez kontroli.
+  knock: { seconds: 0.7, grip: 1.5 }, // [s]; przyczepność boczna w trakcie [1/s]
+  // Zepsute koła (klucz): gaz do dechy, brak hamulca. Chybotanie kół [rad] — tylko wizualnie.
+  brokenWobble: 0.12,
   bumpRestitution: 0.6, // odbicie przy zderzeniu kart (0 = plastycznie, 1 = sprężyście)
   wallAlign: 0.12, // przy kontakcie kurs obraca się w stronę bandy (ułamek na krok) — brak "zakleszczenia"
 
@@ -319,6 +323,20 @@ export const OBSTACLES = {
   postBaseBulge: 0.08, // [m] podstawa szersza od korpusu
   postSegments: 14, // boki walca
   postCapFlatten: 0.35, // czubek: półkula spłaszczona do tej części promienia
+  // Plama oleju: płaska kałuża; kto w nią wjedzie, przez chwilę ma mało
+  // przyczepności i słabszy skręt. Rozmieszczenie (także w zakrętach) z
+  // osobnego strumienia losowania; gęstość z ustawienia "Przeszkody".
+  oil: {
+    spacing: { none: 0, few: 260, many: 140 }, // [m] między plamami (klucze jak densities)
+    jitter: 0.25, // losowe przesunięcie (× spacing)
+    radius: 2.3, // [m] promień plamy (efekt: środek karta w plamie)
+    seconds: 1.3, // [s] poślizg (odliczany od ostatniego kontaktu z plamą)
+    grip: 2.2, // [1/s] przyczepność boczna w poślizgu (normalnie KART.grip)
+    steerMul: 0.45, // mnożnik skrętu w poślizgu
+    clearance: 18, // [m] odstęp (wzdłuż toru) od skrzynek i przeszkód
+    edgeMargin: 0.5, // [m] plama nie wystaje za jezdnię
+    color: 0x111116, sheen: 0x5b4a8a, // kolor plamy i połysku
+  },
   bumpSound: 0.25, // siła dźwięku uderzenia przy progu (0..1, jak wall)
   bumpShake: 0.12, // [m] wstrząs kamery przy progu
 };

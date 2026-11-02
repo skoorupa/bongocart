@@ -39,6 +39,9 @@ export function createKartState(track, slot) {
     drift: { active: false, dir: 0, charge: 0, level: 0, hop: 0 },
     boostTime: 0,
     spinTime: 0, // > 0 = obrót po trafieniu (brak kontroli)
+    knockTime: 0, // > 0 = poślizg po kopniaku (brak kontroli, mała przyczepność)
+    brokenTime: 0, // > 0 = zepsute koła: gaz do dechy, brak hamulca
+    oilTime: 0, // > 0 = poślizg po plamie oleju
     shieldTime: 0, // > 0 = tarcza (zdejmuje ją items.js)
     surface: 'road', // road | kerb | offroad
     lateral: q.lateral, // przesunięcie od środka toru (+ = w prawo)
@@ -60,15 +63,36 @@ export function spinOut(kart) {
   endDrift(kart.drift);
 }
 
+// Kopniak (but): pchnięcie o push [m/s] w kierunku (dirX, dirZ) i chwila
+// poślizgu bez kontroli; przerywa dryf i turbo.
+export function knockOut(kart, dirX, dirZ, push) {
+  kart.vx += dirX * push;
+  kart.vz += dirZ * push;
+  kart.speed = kart.vx * Math.sin(kart.heading) + kart.vz * Math.cos(kart.heading);
+  kart.knockTime = KART.knock.seconds;
+  kart.boostTime = 0;
+  endDrift(kart.drift);
+}
+
+// Zepsute koła (klucz): przez seconds gaz do dechy i brak hamulca.
+export function breakWheels(kart, seconds) {
+  kart.brokenTime = Math.max(kart.brokenTime, seconds);
+}
+
 const NO_INPUT = { throttle: 0, brake: 0, steer: 0, drift: false };
 
 // input: {throttle 0..1, brake 0..1, steer −1..1, drift bool}
 export function stepKart(kart, input, track, stats, dt) {
   const spinning = kart.spinTime > 0;
-  if (spinning) {
-    kart.spinTime = Math.max(0, kart.spinTime - dt);
-    input = NO_INPUT;
-  }
+  const knocked = kart.knockTime > 0;
+  const oily = kart.oilTime > 0;
+  kart.spinTime = Math.max(0, kart.spinTime - dt);
+  kart.knockTime = Math.max(0, kart.knockTime - dt);
+  kart.oilTime = Math.max(0, kart.oilTime - dt);
+  // Obrót i kopniak odbierają kontrolę; zepsute koła tylko gaz i hamulec.
+  if (spinning || knocked) input = NO_INPUT;
+  else if (kart.brokenTime > 0) input = { ...input, throttle: 1, brake: 0 };
+  kart.brokenTime = Math.max(0, kart.brokenTime - dt);
 
   // --- Wygładzony skręt (gamepad analogowy też przechodzi, ale szybko).
   const steerRate = Math.abs(input.steer) > Math.abs(kart.steer) ? KART.steerRiseRate : KART.steerReturnRate;
@@ -118,12 +142,16 @@ export function stepKart(kart, input, track, stats, dt) {
     yawRate = kart.drift.dir * KART.turnRateLow * (KART.drift.turnMin + (KART.drift.turnMax - KART.drift.turnMin) * press);
   } else {
     const rate = KART.turnRateLow + (KART.turnRateHigh - KART.turnRateLow) * speedFrac;
-    yawRate = kart.steer * rate * ramp * Math.sign(fwd || 1);
+    yawRate = kart.steer * rate * ramp * Math.sign(fwd || 1) * (oily ? OBSTACLES.oil.steerMul : 1);
   }
   kart.heading -= yawRate * stats.turnMul * dt;
 
   // --- Przyczepność boczna.
-  lat *= Math.exp(-(kart.drift.active ? KART.driftGrip : KART.grip) * dt);
+  // Przyczepność boczna: najmniejsza z aktywnych (dryf, kopniak, olej).
+  let grip = kart.drift.active ? KART.driftGrip : KART.grip;
+  if (knocked) grip = Math.min(grip, KART.knock.grip);
+  if (oily) grip = Math.min(grip, OBSTACLES.oil.grip);
+  lat *= Math.exp(-grip * dt);
 
   // Nowe osie po obrocie: prędkość wzdłużna "obraca się" z kartem.
   const nfx = Math.sin(kart.heading), nfz = Math.cos(kart.heading);
@@ -170,6 +198,11 @@ function collideObstacles(kart, track, prevS, prevX, prevZ) {
     kart.vz *= P.speedKeep;
     kart.speed *= P.speedKeep;
     kart.wallHit = Math.max(kart.wallHit, vn);
+  }
+
+  // Plama oleju: środek karta w plamie -> poślizg (odliczany od wyjazdu).
+  for (const o of track.oils ?? []) {
+    if ((kart.x - o.x) ** 2 + (kart.z - o.z) ** 2 < o.radius * o.radius) kart.oilTime = OBSTACLES.oil.seconds;
   }
 
   // Próg: metr toru karta przeszedł przez metr progu (w dowolną stronę).
@@ -295,6 +328,6 @@ export function collideKarts(karts) {
 export function resetKartToTrack(kart, track) {
   const q = nearestOnTrack(track, kart.x, kart.z);
   const p = track.points[q.index];
-  Object.assign(kart, { x: p.x, z: p.z, heading: p.heading, vx: 0, vz: 0, speed: 0, steer: 0, boostTime: 0, spinTime: 0, bumpTime: 0 });
+  Object.assign(kart, { x: p.x, z: p.z, heading: p.heading, vx: 0, vz: 0, speed: 0, steer: 0, boostTime: 0, spinTime: 0, bumpTime: 0, knockTime: 0, brokenTime: 0, oilTime: 0 });
   endDrift(kart.drift);
 }

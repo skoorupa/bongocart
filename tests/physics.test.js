@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateTrack, nearestOnTrack } from '../src/track/generator.js';
-import { createKartState, stepKart, kartStats } from '../src/physics.js';
+import { createKartState, stepKart, kartStats, knockOut, breakWheels, resetKartToTrack } from '../src/physics.js';
 import { KART, PHYSICS, TRACK, OBSTACLES } from '../src/config.js';
 
 const track = generateTrack({ seed: 'phys', size: 'medium', difficulty: 'easy', theme: 'random', itemFrequency: 'none' });
@@ -250,4 +250,51 @@ test('czołowe uderzenie w środek słupka nie zatrzymuje karta, kara tylko raz'
   assert.ok(Math.abs(after / before - OBSTACLES.post.speedKeep) < 0.02, `${before} -> ${after}`);
   assert.ok(Math.min(...speeds) > 10, `min ${Math.min(...speeds)}`);
   assert.ok(k.trackS > post.s + 2, `utknął: ${k.trackS} vs ${post.s}`);
+});
+
+// --- Efekty: zepsute koła, kopniak, olej.
+test('zepsute koła: kart sam przyspiesza, hamulec nie działa', () => {
+  const k = placed(track, 2, 0, 0);
+  breakWheels(k, 2);
+  run(k, idle, 1);
+  assert.ok(k.speed > 5, `speed ${k.speed}`);
+  const v = k.speed;
+  run(k, { ...idle, brake: 1 }, 0.5);
+  assert.ok(k.speed >= v, `${v} -> ${k.speed}`);
+  run(k, idle, 1); // efekt minął
+  assert.equal(k.brokenTime, 0);
+});
+
+test('kopniak: brak kontroli i zsuw w bok', () => {
+  const k = placed(track, 2, 0, 20);
+  const lat0 = k.lateral;
+  const rx = -Math.cos(k.heading), rz = Math.sin(k.heading); // w prawo
+  knockOut(k, rx, rz, 16);
+  assert.ok(k.knockTime > 0);
+  run(k, { ...idle, steer: -1 }, 0.5); // kontra w lewo — ignorowana
+  assert.ok(k.lateral - lat0 > 2, `lateral ${lat0} -> ${k.lateral}`);
+  run(k, idle, KART.knock.seconds);
+  assert.equal(k.knockTime, 0);
+});
+
+test('plama oleju: poślizg i słabszy skręt', () => {
+  const q = at(6, 0);
+  const oily = { ...track, oils: [{ x: q.x, z: q.z, radius: OBSTACLES.oil.radius }] };
+  const turn = (t) => {
+    const k = placed(t, 5, 0, 20);
+    const h0 = k.heading;
+    for (let i = 0; i < Math.round(0.3 / DT); i++) stepKart(k, { ...gas, steer: 1 }, t, kartStats('150cc'), DT);
+    return { k, dh: Math.abs(k.heading - h0) };
+  };
+  const dry = turn(track), wet = turn(oily);
+  assert.ok(wet.k.oilTime > 0 && wet.k.oilTime <= OBSTACLES.oil.seconds);
+  assert.equal(dry.k.oilTime, 0);
+  assert.ok(wet.dh < dry.dh * 0.8, `${wet.dh} vs ${dry.dh}`);
+});
+
+test('reset zeruje efekty', () => {
+  const k = placed(track, 2, 0, 10);
+  Object.assign(k, { knockTime: 1, brokenTime: 1, oilTime: 1 });
+  resetKartToTrack(k, track);
+  assert.deepEqual([k.knockTime, k.brokenTime, k.oilTime], [0, 0, 0]);
 });
