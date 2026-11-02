@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateTrack, targetTrackLength, nearestOnTrack, gridSlot, OUTER_HALF } from '../src/track/generator.js';
-import { TRACK, KART, OBSTACLES } from '../src/config.js';
+import { TRACK, KART, OBSTACLES, COINS } from '../src/config.js';
 
 const params = (seed, size = 'medium', difficulty = 'medium') => ({ seed, size, difficulty, theme: 'random', itemFrequency: 'normal' });
 const strip = (t) => JSON.stringify({ p: t.points, r: t.racingLine, c: t.checkpoints, b: t.itemBoxes, d: t.decorations, o: t.obstacles, th: t.themeId });
@@ -172,4 +172,52 @@ test('słupki: oba układy (slalom i rządek) występują, slalom zmienia stron�
     }
   }
   assert.ok(slalom > 5 && row > 5, `slalom ${slalom}, rządek ${row}`);
+});
+
+// --- Plamy oleju i monety.
+const oilParams = (seed, extra = {}) => ({ seed, size: 'medium', difficulty: 'hard', theme: 'random', itemFrequency: 'often', ...extra });
+
+test('plamy oleju: none = brak, deterministyczne, osobny strumień (przeszkody bez zmian)', () => {
+  assert.equal(generateTrack(oilParams('oil', { obstacles: 'none' })).oils.length, 0);
+  const a = generateTrack(oilParams('oil', { obstacles: 'many' }));
+  const b = generateTrack(oilParams('oil', { obstacles: 'many' }));
+  assert.ok(a.oils.length > 0);
+  assert.equal(JSON.stringify(a.oils), JSON.stringify(b.oils));
+  const few = generateTrack(oilParams('oil', { obstacles: 'few' }));
+  assert.ok(few.oils.length < a.oils.length);
+  // Monety nie przesuwają plam ani przeszkód.
+  const c = generateTrack(oilParams('oil', { obstacles: 'many', coins: true }));
+  assert.equal(JSON.stringify(c.oils), JSON.stringify(a.oils));
+  assert.equal(JSON.stringify(c.obstacles), JSON.stringify(a.obstacles));
+});
+
+test('plamy: na jezdni, wolny przejazd, z dala od skrzynek i przeszkód (wiele seedów)', () => {
+  const O = OBSTACLES.oil;
+  for (let i = 0; i < 25; i++) {
+    const t = generateTrack(oilParams(`oil${i}`, { obstacles: 'many' }));
+    for (const o of t.oils) {
+      assert.ok(Math.abs(o.lateral) + o.radius <= t.halfWidth - O.edgeMargin + 1e-9, `poza jezdnią: oil${i}`);
+      // Wolny pas po szerszej stronie plamy mieści karta z zapasem.
+      const free = t.halfWidth + Math.abs(o.lateral) - o.radius;
+      assert.ok(free >= 4 * KART.radius, `wąski przejazd: oil${i}`);
+      for (const b of t.itemBoxes) assert.ok(alongDist(o.s, t.points[b.index].s, t.length) >= O.clearance - t.step, `przy skrzynce: oil${i}`);
+      for (const x of t.obstacles) assert.ok(alongDist(o.s, x.s, t.length) >= O.clearance - t.step, `przy przeszkodzie: oil${i}`);
+    }
+  }
+});
+
+test('monety: tylko gdy coins, deterministyczne, rzędy na jezdni z dala od skrzynek, przeszkód i plam', () => {
+  assert.equal(generateTrack(oilParams('coin', { obstacles: 'many' })).coins.length, 0);
+  for (let i = 0; i < 15; i++) {
+    const p = oilParams(`coin${i}`, { obstacles: 'many', coins: true });
+    const t = generateTrack(p);
+    assert.ok(t.coins.length >= COINS.perRow[0], `brak monet: coin${i}`);
+    assert.equal(JSON.stringify(t.coins), JSON.stringify(generateTrack(p).coins));
+    for (const c of t.coins) {
+      const q = nearestOnTrack(t, c.x, c.z);
+      assert.ok(Math.abs(q.lateral) <= t.halfWidth, `poza jezdnią: coin${i}`);
+      for (const b of t.itemBoxes) assert.ok(alongDist(c.s, t.points[b.index].s, t.length) >= COINS.clearance - t.step);
+      for (const x of [...t.obstacles, ...t.oils]) assert.ok(alongDist(c.s, x.s, t.length) >= COINS.clearance - t.step);
+    }
+  }
 });

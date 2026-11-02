@@ -13,7 +13,7 @@
 //   5. z tej samej linii: checkpointy, start, pola startowe, skrzynki, przeszkody,
 //      linia jazdy botów, dekoracje, paleta.
 // =====================================================================
-import { TRACK, KART, ITEMS, THEMES, OBSTACLES } from '../config.js';
+import { TRACK, KART, ITEMS, THEMES, OBSTACLES, COINS } from '../config.js';
 import { createRng, deriveSeed } from '../rng.js';
 
 const TAU = Math.PI * 2;
@@ -381,6 +381,69 @@ function placeObstacles(seed, points, step, length, itemBoxes, density) {
   return out;
 }
 
+// Odległość wzdłuż toru (po krótszej stronie pętli).
+const alongDist = (a, b, length) => { const d = Math.abs(a - b) % length; return Math.min(d, length - d); };
+
+// Plamy oleju: z osobnego strumienia losowania (słupki i progi danego
+// seeda się nie zmieniają). Mogą leżeć w zakręcie; z dala od startu, mety,
+// skrzynek i przeszkód; plama w całości na jezdni, obok wolny przejazd.
+function placeOilSlicks(seed, points, step, length, itemBoxes, obstacles, density) {
+  const O = OBSTACLES.oil, OB = OBSTACLES;
+  const spacing = O.spacing[density];
+  if (!spacing) return [];
+  const rng = createRng(deriveSeed(seed, 'oil'));
+  const n = points.length;
+  const taken = [...new Set(itemBoxes.map((b) => b.index))].map((i) => points[i].s).concat(obstacles.map((o) => o.s));
+  const free = (s) => taken.every((t) => alongDist(s, t, length) >= O.clearance);
+  const maxLat = TRACK.width / 2 - O.radius - O.edgeMargin;
+  const out = [];
+  for (let s = OB.afterStart + step; ; s += spacing * (1 + rng.range(-O.jitter, O.jitter))) {
+    const lat = rng.range(-maxLat, maxLat);
+    let at = s;
+    while (at - s <= spacing * OB.searchFraction && !free(at)) at += OB.searchStep;
+    if (at + step > length - OB.beforeFinish) break;
+    if (!free(at)) continue;
+    s = at;
+    const index = mod(Math.round(s / step), n);
+    const p = points[index];
+    out.push({ x: p.x + p.nx * lat, z: p.z + p.nz * lat, s: p.s, index, lateral: lat, radius: O.radius });
+  }
+  return out;
+}
+
+// Monety: rzędy po skosie, z dala od skrzynek, przeszkód i plam
+// (taken = metry toru zajętych miejsc).
+function placeCoins(seed, points, step, length, taken, enabled) {
+  if (!enabled) return [];
+  const C = COINS;
+  const rng = createRng(deriveSeed(seed, 'coins'));
+  const n = points.length;
+  const maxLat = TRACK.width / 2 - C.radius;
+  const out = [];
+  for (let s = C.afterStart; ; s += C.rowSpacing * (1 + rng.range(-C.rowJitter, C.rowJitter))) {
+    const count = rng.int(C.perRow[0], C.perRow[1]);
+    const lat0 = rng.range(-C.maxLateral, C.maxLateral);
+    const dir = rng.next() < 0.5 ? -1 : 1;
+    const span = (count - 1) * C.spacing;
+    const ok = (x) => {
+      for (let k = 0; k < count; k++) if (taken.some((t) => alongDist(x + k * C.spacing, t, length) < C.clearance)) return false;
+      return true;
+    };
+    let at = s;
+    while (at - s <= C.rowSpacing * OBSTACLES.searchFraction && !ok(at)) at += C.searchStep;
+    if (at + span + step > length - C.beforeFinish) break;
+    if (!ok(at)) continue;
+    s = at;
+    for (let k = 0; k < count; k++) {
+      const index = mod(Math.round((s + k * C.spacing) / step), n);
+      const p = points[index];
+      const lat = clamp(lat0 + dir * k * C.slant, -maxLat, maxLat);
+      out.push({ x: p.x + p.nx * lat, z: p.z + p.nz * lat, s: p.s, index });
+    }
+  }
+  return out;
+}
+
 function placeDecorations(seed, track) {
   const d = TRACK.decorations;
   const rng = createRng(deriveSeed(seed, 'decor'));
@@ -403,9 +466,9 @@ function placeDecorations(seed, track) {
 }
 
 // ---------------------------------------------------------------------
-// API: generateTrack({seed, size, difficulty, theme, itemFrequency, obstacles})
+// API: generateTrack({seed, size, difficulty, theme, itemFrequency, obstacles, coins})
 // ---------------------------------------------------------------------
-export function generateTrack({ seed, size, difficulty, theme, itemFrequency, obstacles = 'none' }) {
+export function generateTrack({ seed, size, difficulty, theme, itemFrequency, obstacles = 'none', coins = false }) {
   seed = String(seed);
   const diff = TRACK.difficulties[difficulty];
   const length0 = targetTrackLength(size);
@@ -468,6 +531,13 @@ export function generateTrack({ seed, size, difficulty, theme, itemFrequency, ob
   };
   track.obstacles = placeObstacles(seed, points, step, length, track.itemBoxes, obstacles);
   track.posts = track.obstacles.filter((o) => o.type === 'post'); // dla fizyki i botów
+  track.oils = placeOilSlicks(seed, points, step, length, track.itemBoxes, track.obstacles, obstacles);
+  const taken = [
+    ...[...new Set(track.itemBoxes.map((b) => b.index))].map((i) => points[i].s),
+    ...track.obstacles.map((o) => o.s),
+    ...track.oils.map((o) => o.s),
+  ];
+  track.coins = placeCoins(seed, points, step, length, taken, coins);
   track.decorations = placeDecorations(seed, track);
   return track;
 }
@@ -481,5 +551,6 @@ export function trackParamsFromSettings(settings, seed) {
     theme: settings.theme,
     itemFrequency: settings.itemFrequency,
     obstacles: settings.obstacles,
+    coins: settings.coins,
   };
 }

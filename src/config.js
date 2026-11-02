@@ -199,15 +199,15 @@ export const TRACK = {
   // wydłużenie kształtu [min, max] (1 = koło, więcej = długie proste).
   difficulties: {
     easy: {
-      label: 'Łatwy', metersPerPoint: [95, 120], radiusVariance: 0.3, angleJitter: 0.3, minTurnRadius: 30, aspect: [1.3, 1.8],
+      label: 'Łatwy', metersPerPoint: [95, 120], radiusVariance: 0.3, angleJitter: 0.3, minTurnRadius: 26, aspect: [1.3, 1.8],
       lobes: { count: [1, 1], amplitude: [0.38, 0.5] },
     },
     medium: {
-      label: 'Średni', metersPerPoint: [65, 80], radiusVariance: 0.35, angleJitter: 0.4, minTurnRadius: 22, aspect: [1.2, 1.8],
+      label: 'Średni', metersPerPoint: [65, 80], radiusVariance: 0.4, angleJitter: 0.45, minTurnRadius: 15, aspect: [1.2, 1.8],
       lobes: { count: [2, 2], amplitude: [0.38, 0.52] },
     },
     hard: {
-      label: 'Trudny', metersPerPoint: [48, 60], radiusVariance: 0.4, angleJitter: 0.45, minTurnRadius: 16, aspect: [1.1, 1.8],
+      label: 'Trudny', metersPerPoint: [44, 56], radiusVariance: 0.45, angleJitter: 0.5, minTurnRadius: 10, aspect: [1.1, 1.8],
       lobes: { count: [2, 2], amplitude: [0.42, 0.58] },
     },
   },
@@ -397,6 +397,30 @@ export const ITEMS = {
   },
 };
 
+// ---------------------------------------------------------------------
+// Monety: rzędy na torze (z seeda). Zbierane jak skrzynki: znikają na
+// chwilę, a jeden kart bierze tę samą monetę najwyżej raz na okrążenie.
+// Premia w turnieju: tournament.js (coinBonus). Logika items.js,
+// rozmieszczenie generator toru, wygląd itemsMesh.js.
+// ---------------------------------------------------------------------
+export const COINS = {
+  rowSpacing: 130, // [m] między rzędami
+  rowJitter: 0.25, // losowe przesunięcie rzędu (× rowSpacing)
+  perRow: [3, 5], // monet w rzędzie (włącznie)
+  spacing: 4, // [m] między monetami rzędu (wzdłuż toru)
+  maxLateral: 4.5, // [m] rząd losowo przesunięty od osi toru
+  slant: 0.6, // [m] boczne przesunięcie kolejnej monety (rząd po skosie)
+  afterStart: 50, // [m] brak monet tuż za startem
+  beforeFinish: 30, // [m] i tuż przed metą
+  clearance: 10, // [m] odstęp (wzdłuż toru) od skrzynek, przeszkód i plam
+  searchStep: 4, // [m] krok szukania wolnego miejsca dla rzędu
+  pickupRadius: 0.8, // [m] (+ KART.radius)
+  respawnSeconds: 1, // [s] moneta znika po zebraniu (dla wszystkich)
+  // Wygląd.
+  radius: 0.5, thickness: 0.12, height: 0.9, spinSpeed: 3, color: 0xffc83d,
+  takenOpacity: 0.3, // moneta już zebrana przez Ciebie na tym okrążeniu
+};
+
 // Poziomy botów. speedFactor ogranicza prędkość docelową (× v.max klasy),
 // cornerFactor — jak odważnie wchodzą w zakręty, lineNoise — jak bardzo
 // "pływają" wokół linii jazdy [m], dodge — omijają banany.
@@ -569,15 +593,15 @@ export const THEMES = {
 export const PRESETS = {
   standard: {
     label: 'Standard',
-    values: { itemFrequency: 'normal', enabledItems: ['rocket', 'banana', 'boost', 'shield'], kartCollisions: true, botDifficulty: 'medium', speedClass: '150cc', minRacers: 4, obstacles: 'few' },
+    values: { itemFrequency: 'normal', enabledItems: ['rocket', 'banana', 'boost', 'shield'], kartCollisions: true, botDifficulty: 'medium', speedClass: '150cc', minRacers: 4, obstacles: 'few', coins: true },
   },
   chaos: {
     label: 'Chaos',
-    values: { itemFrequency: 'often', enabledItems: ['rocket', 'banana', 'boost', 'shield'], kartCollisions: true, botDifficulty: 'hard', speedClass: '200cc', minRacers: 8, obstacles: 'many' },
+    values: { itemFrequency: 'often', enabledItems: ['rocket', 'banana', 'boost', 'shield'], kartCollisions: true, botDifficulty: 'hard', speedClass: '200cc', minRacers: 8, obstacles: 'many', coins: true },
   },
   clean: {
     label: 'Czysty wyścig',
-    values: { itemFrequency: 'none', enabledItems: [], kartCollisions: false, botDifficulty: 'hard', speedClass: '150cc', minRacers: 4, obstacles: 'none' },
+    values: { itemFrequency: 'none', enabledItems: [], kartCollisions: false, botDifficulty: 'hard', speedClass: '150cc', minRacers: 4, obstacles: 'none', coins: false },
   },
 };
 
@@ -628,7 +652,8 @@ export const SETTINGS_SCHEMA = [
   { key: 'kartCollisions', type: 'bool', label: 'Kolizje między kartami', default: true },
   { key: 'trackSize', type: 'select', label: 'Rozmiar toru', options: optionsOf(TRACK.sizes), default: 'medium' },
   { key: 'trackDifficulty', type: 'select', label: 'Trudność toru', options: optionsOf(TRACK.difficulties), default: 'medium' },
-  { key: 'obstacles', type: 'select', label: 'Przeszkody na torze', options: optionsOf(OBSTACLES.densities), default: 'few' },
+  { key: 'obstacles', type: 'select', label: 'Przeszkody na torze (z plamami oleju)', options: optionsOf(OBSTACLES.densities), default: 'few' },
+  { key: 'coins', type: 'bool', label: 'Monety na torze (punkty)', default: true },
   {
     key: 'trackSeed', type: 'text', label: 'Seed toru (puste = losowy)',
     maxLength: 24, pattern: /^[A-Za-z0-9_-]*$/, placeholder: 'losowy', default: '',
