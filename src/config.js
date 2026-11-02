@@ -370,26 +370,61 @@ export const ITEMS = {
     banana: { label: 'Banan', icon: '🍌', weights: [4, 2, 1] },
     boost: { label: 'Turbo', icon: '⚡', weights: [1, 3, 4] },
     shield: { label: 'Tarcza', icon: '🛡️', weights: [3, 2, 1] },
+    boot: { label: 'But (kopniak)', icon: '👢', weights: [2, 3, 2] },
+    wrench: { label: 'Zepsute koła', icon: '🔧', weights: [1, 2, 3] },
   },
 
   boost: { seconds: 1.6 },
   shield: { seconds: 8 },
-  banana: { dropBack: 2.6, hitRadius: 0.9, maxOnTrack: 24 },
-  // Pocisk leci wzdłuż toru i dopasowuje się bokiem do celu; z bliska
-  // naprowadza się wprost. Cel = kierowca bezpośrednio przed strzelającym.
+  banana: { dropBack: 2.6, hitRadius: 0.9, maxOnTrack: 24, lifetime: 45 }, // lifetime [s] na torze
+  // Pociski (rocket, boot, wrench): każdy znika po maxDistance [m] lotu albo
+  // po lifetime [s] — co nastąpi pierwsze.
+  // guided: leci wzdłuż toru i dopasowuje się bokiem do celu, z bliska
+  // naprowadza się wprost (cel = kierowca bezpośrednio przed strzelającym);
+  // bez guided: leci prosto kursem strzelającego, trafia pierwszego na drodze.
   rocket: {
+    guided: true,
     speed: 55, // [m/s] (szybszy od każdego karta)
-    lifetime: 7, // [s]
+    maxDistance: 220, // [m]
+    lifetime: 5, // [s]
     launchAhead: 2.5, // [m] przed kartem
     lateralRate: 12, // [m/s] zmiana przesunięcia bocznego
     homingRange: 18, // [m]
     hitRadius: 1.0,
     armSeconds: 0.3, // tyle nie trafia strzelającego
   },
+  // But: krótki rzut prosto przed siebie; trafiony dostaje kopniaka w bok
+  // (w stronę bliższej krawędzi toru) i ślizga się (KART.knock).
+  boot: {
+    guided: false,
+    speed: 45, // [m/s]
+    maxDistance: 35, // [m]
+    lifetime: 1.2, // [s]
+    launchAhead: 2.5, // [m]
+    hitRadius: 1.3, // [m]
+    armSeconds: 0.3, // [s]
+    push: 16, // [m/s] pchnięcie w bok
+  },
+  // Klucz: leci do kierowcy przed strzelającym jak pocisk; trafiony przez
+  // brokenSeconds ma gaz do dechy i nie może hamować.
+  wrench: {
+    guided: true,
+    speed: 48, // [m/s]
+    maxDistance: 160, // [m]
+    lifetime: 4, // [s]
+    launchAhead: 2.5, // [m]
+    lateralRate: 12, // [m/s]
+    homingRange: 18, // [m]
+    hitRadius: 1.0, // [m]
+    armSeconds: 0.3, // [s]
+    brokenSeconds: 4, // [s] zepsute koła
+  },
   // Bot: kiedy używa przedmiotu.
   ai: {
     holdSeconds: [0.8, 3.5], // losowa zwłoka po wylosowaniu
     rocketRange: 90, // [m] strzela, gdy cel jest bliżej
+    bootRange: 20, // [m] rzuca butem, gdy ktoś jest tuż przed nim
+    wrenchRange: 110, // [m] rzuca kluczem, gdy cel jest bliżej
     bananaBehind: 15, // [m] zrzuca, gdy ktoś jest tuż za nim
     boostStraightRadius: 90, // [m] turbo na prostej (brak ciaśniejszych zakrętów)
     boostLookMeters: 50,
@@ -593,11 +628,11 @@ export const THEMES = {
 export const PRESETS = {
   standard: {
     label: 'Standard',
-    values: { itemFrequency: 'normal', enabledItems: ['rocket', 'banana', 'boost', 'shield'], kartCollisions: true, botDifficulty: 'medium', speedClass: '150cc', minRacers: 4, obstacles: 'few', coins: true },
+    values: { itemFrequency: 'normal', enabledItems: ['rocket', 'banana', 'boost', 'shield', 'boot', 'wrench'], kartCollisions: true, botDifficulty: 'medium', speedClass: '150cc', minRacers: 4, obstacles: 'few', coins: true },
   },
   chaos: {
     label: 'Chaos',
-    values: { itemFrequency: 'often', enabledItems: ['rocket', 'banana', 'boost', 'shield'], kartCollisions: true, botDifficulty: 'hard', speedClass: '200cc', minRacers: 8, obstacles: 'many', coins: true },
+    values: { itemFrequency: 'often', enabledItems: ['rocket', 'banana', 'boost', 'shield', 'boot', 'wrench'], kartCollisions: true, botDifficulty: 'hard', speedClass: '200cc', minRacers: 8, obstacles: 'many', coins: true },
   },
   clean: {
     label: 'Czysty wyścig',

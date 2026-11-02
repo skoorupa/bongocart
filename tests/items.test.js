@@ -136,3 +136,102 @@ test('wyścig botów z przedmiotami: wszyscy dojeżdżają, przedmioty są używ
   assert.ok(game.race.racers.every((r) => r.finishTime !== null));
   assert.ok(used.size >= 3, [...used].join());
 });
+
+// --- Pociski: but, klucz, limity dystansu i czasu.
+// Kart b dokładnie na linii kursu a (dist m przed nim, side m w prawo).
+const inFront = (a, b, dist, side = 0) => {
+  const fx = Math.sin(a.heading), fz = Math.cos(a.heading);
+  Object.assign(b, { x: a.x + fx * dist - fz * side, z: a.z + fz * dist + fx * side, heading: a.heading, vx: 0, vz: 0, speed: 0 });
+  stepKart(b, { throttle: 0, brake: 0, steer: 0, drift: false }, track, kartStats('150cc'), 0); // odśwież trackS/lateral
+};
+const fire = (items, ctx, id, seconds, extra = () => {}) => {
+  const events = [];
+  for (let t = 0; t < seconds; t += DT) {
+    events.push(...stepItems(items, ctx, t === 0 ? new Set([id]) : NOBODY, DT));
+    extra();
+  }
+  return events;
+};
+
+test('but leci prosto i odpycha pierwszego na linii', () => {
+  const { items, karts, ctx } = setup();
+  const a = karts.get('a'), b = karts.get('b');
+  placeAt(a, 100);
+  inFront(a, b, 15);
+  ready(items, 'a', 'boot');
+  const ev = fire(items, ctx, 'a', 1);
+  const hit = ev.find((e) => e.type === 'hit');
+  assert.deepEqual(hit && [hit.id, hit.by, hit.what], ['b', 'a', 'boot']);
+  assert.ok(b.knockTime > 0);
+  const x0 = b.x, z0 = b.z, rx = -Math.cos(b.heading), rz = Math.sin(b.heading);
+  const stats = kartStats('150cc');
+  for (let t = 0; t < 0.5; t += DT) stepKart(b, { throttle: 0, brake: 0, steer: 0, drift: false }, track, stats, DT);
+  assert.ok(Math.abs((b.x - x0) * rx + (b.z - z0) * rz) > 2, 'brak zsuwu w bok');
+});
+
+test('but obok linii nie trafia i znika', () => {
+  const { items, karts, ctx } = setup();
+  const a = karts.get('a'), b = karts.get('b');
+  placeAt(a, 100);
+  inFront(a, b, 15, 4);
+  ready(items, 'a', 'boot');
+  const ev = fire(items, ctx, 'a', ITEMS.boot.lifetime + DT);
+  assert.equal(ev.filter((e) => e.type === 'hit').length, 0);
+  assert.equal(items.projectiles.length, 0);
+});
+
+test('każdy pocisk znika po maxDistance i po lifetime (także bez celu)', () => {
+  for (const kind of ['rocket', 'boot', 'wrench']) {
+    const { items, karts, ctx } = setup();
+    const a = karts.get('a');
+    placeAt(a, 100);
+    placeAt(karts.get('b'), 40, 5); // za strzelającym, poza drogą pocisku
+    ctx.order = ['a', 'b']; // a prowadzi: brak celu
+    ready(items, 'a', kind);
+    const c = ITEMS[kind];
+    const limit = Math.min(c.maxDistance / c.speed, c.lifetime);
+    let steps = 0;
+    stepItems(items, ctx, new Set(['a']), DT);
+    assert.equal(items.projectiles.length, 1, kind);
+    assert.equal(items.projectiles[0].kind, kind);
+    while (items.projectiles.length && steps < 10 / DT) { stepItems(items, ctx, NOBODY, DT); steps++; }
+    assert.ok(steps * DT <= limit + 2 * DT, `${kind}: ${steps * DT} s > ${limit} s`);
+    assert.ok(steps * DT >= limit - 2 * DT, `${kind}: zniknął za wcześnie (${steps * DT} s)`);
+  }
+});
+
+test('klucz psuje koła celu', () => {
+  const { items, karts, ctx } = setup();
+  const a = karts.get('a'), b = karts.get('b');
+  placeAt(a, 100, -2);
+  placeAt(b, 160, 3);
+  ready(items, 'a', 'wrench');
+  const hit = fire(items, ctx, 'a', ITEMS.wrench.lifetime).find((e) => e.type === 'hit');
+  assert.deepEqual(hit && [hit.id, hit.by, hit.what], ['b', 'a', 'wrench']);
+  assert.ok(Math.abs(b.brokenTime - ITEMS.wrench.brokenSeconds) < 1e-9, String(b.brokenTime));
+});
+
+test('tarcza blokuje but i klucz', () => {
+  for (const kind of ['boot', 'wrench']) {
+    const { items, karts, ctx } = setup();
+    const a = karts.get('a'), b = karts.get('b');
+    placeAt(a, 100);
+    inFront(a, b, 15);
+    b.shieldTime = 5;
+    ready(items, 'a', kind);
+    const ev = fire(items, ctx, 'a', 1);
+    assert.ok(ev.some((e) => e.type === 'blocked' && e.what === kind), kind);
+    assert.deepEqual([b.knockTime, b.brokenTime, b.shieldTime], [0, 0, 0], kind);
+  }
+});
+
+test('banan znika po lifetime', () => {
+  const { items, karts, ctx } = setup();
+  placeAt(karts.get('a'), 30);
+  placeAt(karts.get('b'), 120);
+  ready(items, 'b', 'banana');
+  stepItems(items, ctx, new Set(['b']), DT);
+  assert.equal(items.bananas.length, 1);
+  for (let t = 0; t < ITEMS.banana.lifetime + DT; t += DT) stepItems(items, ctx, NOBODY, DT);
+  assert.equal(items.bananas.length, 0);
+});

@@ -9,6 +9,7 @@
 // =====================================================================
 import { NET, MAX_RACERS, KART_COLORS, SETTINGS_SCHEMA, TOURNAMENT } from '../config.js';
 import { sanitizeName } from './lobby.js';
+import { PROJECTILE_KINDS } from '../items.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const num = (v, a, b) => (Number.isFinite(v) ? clamp(v, a, b) : 0);
@@ -111,7 +112,7 @@ export function makeSnapshot(game, ht, acks, events) {
     items: {
       boxes: items.boxes.map((b) => round(b.respawn)),
       bananas: items.bananas.map((b) => [b.id, round(b.x), round(b.z)]),
-      rockets: items.rockets.map((r) => [r.id, round(r.x), round(r.z), round(r.heading)]),
+      projectiles: items.projectiles.map((r) => [r.id, r.kind, round(r.x), round(r.z), round(r.heading)]),
       slots: race.racers.map((r) => {
         const s = items.slots.get(r.id);
         return [s.item, round(s.roll)];
@@ -127,7 +128,10 @@ export function applyRaceAndItems(game, snap) {
   race.racers.forEach((r, i) => RACER_FIELDS.forEach((f, j) => { r[f] = snap.racers[i][j]; }));
   snap.items.boxes.forEach((v, i) => { if (items.boxes[i]) items.boxes[i].respawn = v; });
   items.bananas = snap.items.bananas.map(([id, x, z]) => ({ id, x, z }));
-  items.rockets = snap.items.rockets.map(([id, x, z, heading]) => ({ id, x, z, heading }));
+  // Nieznany rodzaj pocisku (np. inna wersja) — pomijamy.
+  items.projectiles = snap.items.projectiles
+    .filter(([, kind]) => PROJECTILE_KINDS.includes(kind))
+    .map(([id, kind, x, z, heading]) => ({ id, kind, x, z, heading }));
   race.racers.forEach((r, i) => {
     const [item, roll] = snap.items.slots[i];
     Object.assign(items.slots.get(r.id), { item, roll });

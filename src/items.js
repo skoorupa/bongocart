@@ -3,25 +3,34 @@
 // na torze, pociski, tarcze, trafienia. Czysty JS (liczy host).
 //
 // Przedmioty:
-//   rocket — leci do kierowcy bezpośrednio przed strzelającym
+//   rocket — pocisk: leci do kierowcy bezpośrednio przed strzelającym (obrót)
 //   banana — zostaje za kartem; kto wjedzie, ten się obraca
 //   boost  — turbo
 //   shield — przez chwilę chroni przed jednym trafieniem
+//   boot   — but: rzut prosto przed siebie, trafiony dostaje kopniaka w bok
+//   wrench — klucz: leci jak pocisk, trafiony ma zepsute koła (gaz do dechy,
+//            brak hamulca)
+// Pociski (rocket, boot, wrench) to jeden mechanizm (pole kind); każdy
+// znika po ITEMS[kind].maxDistance albo lifetime.
 // =====================================================================
 import { ITEMS, KART } from './config.js';
 import { createRng, deriveSeed } from './rng.js';
-import { applyBoost, spinOut } from './physics.js';
+import { applyBoost, spinOut, knockOut, breakWheels } from './physics.js';
 
 const approach = (v, target, delta) => (v < target ? Math.min(v + delta, target) : Math.max(v - delta, target));
 const dist2 = (a, b) => (a.x - b.x) ** 2 + (a.z - b.z) ** 2;
+
+// Rodzaje pocisków (kolejność stała — także w protokole).
+export const PROJECTILE_KINDS = ['rocket', 'boot', 'wrench'];
 
 export function createItems({ track, settings, seed, racerIds }) {
   return {
     // Kolejność z ITEMS.types (stała), tylko włączone w ustawieniach.
     enabled: Object.keys(ITEMS.types).filter((t) => settings.enabledItems.includes(t)),
     boxes: track.itemBoxes.map((b) => ({ x: b.x, z: b.z, respawn: 0 })), // respawn > 0 = rozbita
-    bananas: [], // {id, x, z}
-    rockets: [], // {id, owner, target, s, lateral, x, z, heading, age, homing}
+    bananas: [], // {id, owner, x, z, age}
+    // {id, kind, owner, target, s, lateral, x, z, heading, age, dist, homing}
+    projectiles: [],
     slots: new Map(racerIds.map((id) => [id, { item: null, roll: 0 }])),
     nextId: 1,
     rng: createRng(deriveSeed(seed, 'items')),
@@ -53,17 +62,24 @@ export function rollItem(items, place, total) {
 // Zwraca zdarzenia: pickup, use, hit, blocked.
 export function stepItems(items, ctx, uses, dt) {
   const events = [];
-  const { track, karts, order, finished } = ctx;
+  const { track, karts, finished } = ctx;
 
+  // Trafienie: tarcza blokuje wszystko, inaczej efekt wg rodzaju.
   const hit = (id, by, what) => {
     const k = karts.get(id);
     if (k.shieldTime > 0) {
       k.shieldTime = 0;
       events.push({ type: 'blocked', id, by, what });
-    } else {
-      spinOut(k);
-      events.push({ type: 'hit', id, by, what });
+      return;
     }
+    if (what === 'boot') {
+      // W bok, w stronę bliższej krawędzi toru (normalna toru = w prawo).
+      const p = track.points[Math.round(k.trackS / track.step) % track.points.length];
+      const side = k.lateral >= 0 ? 1 : -1;
+      knockOut(k, p.nx * side, p.nz * side, ITEMS.boot.push);
+    } else if (what === 'wrench') breakWheels(k, ITEMS.wrench.brokenSeconds);
+    else spinOut(k);
+    events.push({ type: 'hit', id, by, what });
   };
 
   // --- Skrzynki: rozbija tylko kart z pustym slotem (inaczej czołówka
@@ -76,7 +92,7 @@ export function stepItems(items, ctx, uses, dt) {
       if (!canTake(id) || dist2(box, k) > pickR2) continue;
       box.respawn = ITEMS.box.respawnSeconds;
       const slot = items.slots.get(id);
-      slot.item = rollItem(items, order.indexOf(id), order.length);
+      slot.item = rollItem(items, ctx.order.indexOf(id), ctx.order.length);
       slot.roll = ITEMS.rollSeconds;
       events.push({ type: 'pickup', id });
       break;
@@ -96,43 +112,51 @@ export function stepItems(items, ctx, uses, dt) {
   }
 
   // --- Pociski.
-  const rc = ITEMS.rocket;
-  items.rockets = items.rockets.filter((r) => {
+  items.projectiles = items.projectiles.filter((r) => {
+    const c = ITEMS[r.kind];
     r.age += dt;
-    if (r.age > rc.lifetime) return false;
+    if (r.age > c.lifetime || r.dist > c.maxDistance) return false;
+    const x0 = r.x, z0 = r.z;
     const target = r.target !== null ? karts.get(r.target) : null;
-    if (target && (r.homing || dist2(r, target) < rc.homingRange ** 2)) {
+    if (!c.guided) {
+      // Prosto przed siebie.
+      r.x += Math.sin(r.heading) * c.speed * dt;
+      r.z += Math.cos(r.heading) * c.speed * dt;
+    } else if (target && (r.homing || dist2(r, target) < c.homingRange ** 2)) {
       // Z bliska: wprost na cel.
       r.homing = true;
       const dx = target.x - r.x, dz = target.z - r.z;
       const d = Math.hypot(dx, dz) || 1;
-      const step = Math.min(d, rc.speed * dt);
+      const step = Math.min(d, c.speed * dt);
       r.x += (dx / d) * step;
       r.z += (dz / d) * step;
       r.heading = Math.atan2(dx, dz);
     } else {
       // Wzdłuż toru, bokiem do linii celu.
-      r.s += rc.speed * dt;
-      r.lateral = approach(r.lateral, target ? target.lateral : r.lateral, rc.lateralRate * dt);
+      r.s += c.speed * dt;
+      r.lateral = approach(r.lateral, target ? target.lateral : r.lateral, c.lateralRate * dt);
       const p = pointAt(track, r.s);
       r.x = p.x + p.nx * r.lateral;
       r.z = p.z + p.nz * r.lateral;
       r.heading = p.heading;
     }
-    const hitR2 = (rc.hitRadius + KART.radius) ** 2;
+    r.dist += Math.hypot(r.x - x0, r.z - z0);
+    const hitR2 = (c.hitRadius + KART.radius) ** 2;
     for (const [id, k] of karts) {
-      if (id === r.owner && r.age < rc.armSeconds) continue;
+      if (id === r.owner && r.age < c.armSeconds) continue;
       if (dist2(r, k) < hitR2) {
-        hit(id, r.owner, 'rocket');
+        hit(id, r.owner, r.kind);
         return false;
       }
     }
     return true;
   });
 
-  // --- Banany.
+  // --- Banany (znikają też po czasie).
   const banR2 = (ITEMS.banana.hitRadius + KART.radius) ** 2;
   items.bananas = items.bananas.filter((b) => {
+    b.age += dt;
+    if (b.age > ITEMS.banana.lifetime) return false;
     for (const [id, k] of karts) {
       if (dist2(b, k) < banR2) {
         hit(id, b.owner, 'banana');
@@ -152,22 +176,25 @@ function useItem(items, id, item, { karts, order, finished }) {
   else if (item === 'shield') k.shieldTime = ITEMS.shield.seconds;
   else if (item === 'banana') {
     const b = ITEMS.banana;
-    items.bananas.push({ id: items.nextId++, owner: id, x: k.x - fx * b.dropBack, z: k.z - fz * b.dropBack });
+    items.bananas.push({ id: items.nextId++, owner: id, x: k.x - fx * b.dropBack, z: k.z - fz * b.dropBack, age: 0 });
     if (items.bananas.length > b.maxOnTrack) items.bananas.shift();
-  } else if (item === 'rocket') {
-    // Cel: najbliższy przed strzelającym, który jeszcze jedzie.
-    const ahead = order.slice(0, order.indexOf(id)).filter((o) => !finished.has(o));
-    const rc = ITEMS.rocket;
-    items.rockets.push({
+  } else if (PROJECTILE_KINDS.includes(item)) {
+    const c = ITEMS[item];
+    // Cel (pociski naprowadzane): najbliższy przed strzelającym, który
+    // jeszcze jedzie; prowadzący strzela przed siebie.
+    const ahead = c.guided ? order.slice(0, order.indexOf(id)).filter((o) => !finished.has(o)) : [];
+    items.projectiles.push({
       id: items.nextId++,
+      kind: item,
       owner: id,
-      target: ahead.length ? ahead[ahead.length - 1] : null, // prowadzący strzela przed siebie
-      s: k.trackS + rc.launchAhead,
+      target: ahead.length ? ahead[ahead.length - 1] : null,
+      s: k.trackS + c.launchAhead,
       lateral: k.lateral,
-      x: k.x + fx * rc.launchAhead,
-      z: k.z + fz * rc.launchAhead,
+      x: k.x + fx * c.launchAhead,
+      z: k.z + fz * c.launchAhead,
       heading: k.heading,
       age: 0,
+      dist: 0,
       homing: false,
     });
   }

@@ -108,7 +108,7 @@ export function createItemsView(track) {
       bs.forEach((b, i) => put(bananas, i, b.x, 0.3, b.z, 0, b.id, 0));
       bananas.count = bs.length;
 
-      const rs = (items?.rockets ?? []).slice(0, MAX_ROCKETS);
+      const rs = (items?.projectiles ?? []).slice(0, MAX_ROCKETS);
       rs.forEach((r, i) => {
         put(rockets, i, r.x, 0.8, r.z, 0, r.heading, t * 12);
         put(flames, i, r.x, 0.8, r.z, 0, r.heading, 0, 0.8 + Math.abs(Math.sin(t * 40 + i)) * 0.5);
