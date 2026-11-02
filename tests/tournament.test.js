@@ -1,7 +1,7 @@
 // Testy turnieju: punktacja, DNF, remisy, seedy map, gotowość, fazy.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createTournament, mapSeedOf, coinBonus, coinsPossible } from '../src/tournament.js';
+import { createTournament, mapSeedOf, coinBonus, coinsPossible, racePoints } from '../src/tournament.js';
 import { TOURNAMENT, PHYSICS } from '../src/config.js';
 import { createGame, buildRoster } from '../src/game.js';
 import { generateTrack } from '../src/track/generator.js';
@@ -137,4 +137,31 @@ test('recordRace: punkty = miejsce + premia; ostatni z kompletem monet < 4. miej
   assert.equal(tab.p2.lastPoints, TOURNAMENT.points[1] + 3);
   assert.equal(tab.p8.points, (TOURNAMENT.points[7] ?? 0) + TOURNAMENT.maxCoinPoints);
   assert.ok(tab.p8.points < tab.p4.points, `${tab.p8.points} vs ${tab.p4.points}`);
+});
+
+// --- Rozbicie punktów: per mapa i per zawodnik.
+test('racePoints: punkty za miejsce i za monety osobno, suma', () => {
+  const r = race(100, [['a', 50], ['b', 51], ['c', null, 10]]);
+  r.racers[1].coins = 50;
+  assert.deepEqual(racePoints(r, 100), [
+    { id: 'a', place: TOURNAMENT.points[0], coins: 0, total: TOURNAMENT.points[0] },
+    { id: 'b', place: TOURNAMENT.points[1], coins: 3, total: TOURNAMENT.points[1] + 3 },
+    { id: 'c', place: TOURNAMENT.points[2], coins: 0, total: TOURNAMENT.points[2] },
+  ]);
+});
+
+test('tabela turnieju: wynik każdej mapy (pkt, czas); sumy = suma map', () => {
+  const t = createTournament({ seed: 's', mapCount: 3, roster: [H('a'), B('b')] });
+  t.recordRace(race(80, [['a', 60], ['b', null, 5]]));
+  t.nextMap();
+  const r2 = race(90, [['b', 70], ['a', 72]]);
+  r2.racers[1].coins = 10;
+  t.recordRace(r2, 10);
+  const tab = Object.fromEntries(t.table().map((x) => [x.id, x]));
+  assert.deepEqual(tab.a.maps, [{ points: TOURNAMENT.points[0], time: 60 }, { points: TOURNAMENT.points[1] + TOURNAMENT.maxCoinPoints, time: 72 }]);
+  assert.deepEqual(tab.b.maps, [{ points: TOURNAMENT.points[1], time: 80 }, { points: TOURNAMENT.points[0], time: 70 }]);
+  for (const row of t.table()) {
+    assert.equal(row.points, row.maps.reduce((s, m) => s + m.points, 0));
+    assert.equal(row.time, row.maps.reduce((s, m) => s + m.time, 0));
+  }
 });

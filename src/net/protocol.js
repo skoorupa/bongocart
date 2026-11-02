@@ -163,6 +163,11 @@ export function sanitizeTourneyView(raw) {
     points: int(r?.points, 0, MAX_MAPS * MAX_MAP_POINTS),
     time: num(r?.time, 0, TOURNAMENT.maxTotalSeconds),
     lastPoints: int(r?.lastPoints, 0, MAX_MAP_POINTS),
+    // Wynik każdej mapy {points, time}.
+    maps: (Array.isArray(r?.maps) ? r.maps : []).slice(0, MAX_MAPS).map((m) => ({
+      points: int(m?.points, 0, MAX_MAP_POINTS),
+      time: num(m?.time, 0, TOURNAMENT.maxTotalSeconds),
+    })),
     left: !!r?.left,
   }));
   return {

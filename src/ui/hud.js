@@ -5,7 +5,7 @@
 // =====================================================================
 import { ITEMS, RACE } from '../config.js';
 import { displayLap, estimatedFinish, formatTime, gapToLeader, showWrongWay, standings } from '../race.js';
-import { coinBonus, coinsPossible } from '../tournament.js';
+import { coinsPossible, racePoints } from '../tournament.js';
 import { renderTournamentTable } from './tournamentView.js';
 
 const $ = (id) => document.getElementById(id);
@@ -47,12 +47,6 @@ const HIT_BANNERS = {
   wrench: 'Zepsute koła — brak hamulca!',
 };
 
-// Monety w wynikach: "🪙 zebrane/możliwe (+premia)"; brak monet na torze = "—".
-function coinsLabel(race, r) {
-  const possible = coinsPossible(race.track, race.laps);
-  return possible ? `🪙 ${r.coins}/${possible} (+${coinBonus(r.coins, possible)})` : '—';
-}
-
 export function createHud() {
   const el = {
     root: $('hud'), lap: $('hudLap'), total: $('hudTotal'), lapTime: $('hudLapTime'), best: $('hudBest'),
@@ -84,7 +78,7 @@ export function createHud() {
     $('tourneyTitle').textContent = done
       ? `Koniec turnieju — wygrywa ${view.table[0]?.name ?? '?'} 🏆`
       : `Turniej po mapie ${view.index + 1} / ${view.count}`;
-    renderTournamentTable($('tourneyBody'), view, { localId: resultsLocalId, showReady: between });
+    renderTournamentTable($('tourneyTable'), view, { localId: resultsLocalId, showReady: between });
     const ready = $('readyBtn');
     ready.hidden = !between;
     ready.disabled = view.ready.includes(resultsLocalId);
@@ -202,15 +196,20 @@ export function createHud() {
       currentTour = tour;
       resultsLocalId = localId;
       $('resultsTitle').textContent = tour ? `Mapa ${tour.view.index + 1} / ${tour.view.count} — wyniki` : 'Wyniki';
+      // Punkty mapy: za miejsce i za monety osobno (także w pojedynczym wyścigu).
+      const points = racePoints(race, coinsPossible(race.track, race.laps));
       el.resultsBody.replaceChildren(...standings(race).map((r, i) => {
         const tr = document.createElement('tr');
         if (r.id === localId) tr.className = 'me';
+        const p = points[i];
         const cells = [
           `${i + 1}.`,
           r.takenOver ? `${r.name} 🤖` : r.name,
           finishLabel(race, r),
           formatTime(r.bestLap),
-          coinsLabel(race, r),
+          String(p.place),
+          String(p.coins),
+          String(p.total),
         ];
         cells.forEach((text, c) => {
           const td = document.createElement('td');
@@ -243,7 +242,7 @@ export function createHud() {
     },
     showTabBoard(view, localId) {
       $('tabBoardTitle').textContent = `Turniej — mapa ${view.index + 1} / ${view.count}`;
-      renderTournamentTable($('tabBoardBody'), view, { localId, showReady: false });
+      renderTournamentTable($('tabBoardTable'), view, { localId, showReady: false });
       $('tabBoard').hidden = false;
     },
     hideTabBoard() { $('tabBoard').hidden = true; },

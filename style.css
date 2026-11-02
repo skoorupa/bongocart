@@ -1,5 +1,6 @@
 :root {
   --panel-bg: rgba(18, 18, 28, 0.86);
+  --panel-solid: rgb(18, 18, 28); /* nieprzezroczyste tło (przyklejone kolumny tabel) */
   --text: #f1f1f6;
   --muted: #a4a4b8;
   --accent: #ffd166;
@@ -228,6 +229,14 @@ button.secondary { background: #3a3a55; color: var(--text); }
 #resultsTable th, .score th { text-align: left; font-weight: 400; color: var(--muted); padding: 4px 10px 4px 0; }
 #resultsTable td, .score td { padding: 5px 10px 5px 0; }
 #resultsTable tr.me td, .score tr.me td { color: var(--accent); font-weight: 700; }
+/* Tabela turnieju: kolumny map przewijają się w poziomie, miejsce i nick zostają przyklejone. */
+.scoreScroll { overflow-x: auto; max-width: calc(100vw - 80px); }
+.score th, .score td { white-space: nowrap; }
+.score .map { padding-left: 12px; border-left: 1px solid var(--line); }
+.score td.total { font-weight: 700; }
+.score .pin { position: sticky; z-index: 1; background: var(--panel-solid); }
+.score .pin1 { left: 0; min-width: 2.2em; }
+.score .pin2 { left: 2.2em; }
 #tourneySection h3 { margin: 16px 0 6px; color: var(--accent); font-size: 1rem; }
 #tourneySection button, #backToLobby { margin-top: 8px; }
 #tabBoard { background: rgba(0, 0, 0, 0.25); pointer-events: none; }

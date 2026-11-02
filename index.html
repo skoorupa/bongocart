@@ -98,16 +98,14 @@
     <div class="card">
       <h2 id="resultsTitle">Wyniki</h2>
       <table id="resultsTable">
-        <thead><tr><th></th><th>Kierowca</th><th>Czas</th><th>Najl. okr.</th><th>Monety</th></tr></thead>
+        <thead><tr><th></th><th>Kierowca</th><th>Czas</th><th>Najl. okr.</th><th>Pkt za miejsce</th><th>Pkt za monety</th><th>Suma</th></tr></thead>
         <tbody id="resultsBody"></tbody>
       </table>
       <!-- Turniej: tabela sumaryczna i gotowość (ui/tournamentView.js). -->
       <div id="tourneySection" hidden>
         <h3 id="tourneyTitle">Turniej</h3>
-        <table class="score">
-          <thead><tr><th></th><th>Kierowca</th><th></th><th>Pkt</th><th>Łączny czas</th><th></th></tr></thead>
-          <tbody id="tourneyBody"></tbody>
-        </table>
+        <!-- Kolumny (mapy) rysuje ui/tournamentView.js; szeroka tabela przewija się w poziomie. -->
+        <div class="scoreScroll"><table id="tourneyTable" class="score"></table></div>
         <button id="readyBtn" class="wide">✓ Gotowy</button>
         <button id="forceStart" class="wide secondary">Start mimo wszystko</button>
       </div>
@@ -119,10 +117,7 @@
   <div id="tabBoard" class="overlay" hidden>
     <div class="card">
       <h2 id="tabBoardTitle">Turniej</h2>
-      <table class="score">
-        <thead><tr><th></th><th>Kierowca</th><th></th><th>Pkt</th><th>Łączny czas</th><th></th></tr></thead>
-        <tbody id="tabBoardBody"></tbody>
-      </table>
+      <div class="scoreScroll"><table id="tabBoardTable" class="score"></table></div>
     </div>
   </div>
 

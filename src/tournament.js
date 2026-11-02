@@ -19,13 +19,22 @@ export const coinsPossible = (track, laps) => (track.coins?.length ?? 0) * laps;
 export const coinBonus = (coins, possible) =>
   (possible > 0 ? Math.round((TOURNAMENT.maxCoinPoints * Math.min(coins, possible)) / possible) : 0);
 
+// Punkty za wyścig, osobno za miejsce i za monety (kolejność = standings):
+// [{id, place, coins, total}]. possible = coinsPossible(track, laps).
+export const racePoints = (race, possible) => standings(race).map((r, i) => {
+  const place = TOURNAMENT.points[i] ?? 0;
+  const coins = coinBonus(r.coins ?? 0, possible);
+  return { id: r.id, place, coins, total: place + coins };
+});
+
 // Seed toru mapy i (0..count-1) — ten sam seed turnieju = te same tory.
 export const mapSeedOf = (seed, i) => `${seed}-${i + 1}`;
 
 // roster: [{id, name, color, isHuman}]
 export function createTournament({ seed, mapCount, roster }) {
   const order = roster.map((r) => r.id);
-  const rows = new Map(roster.map((r) => [r.id, { ...r, points: 0, time: 0, lastPoints: 0, left: false }]));
+  // maps: wynik każdej rozegranej mapy {points, time} (sumy = points, time).
+  const rows = new Map(roster.map((r) => [r.id, { ...r, points: 0, time: 0, lastPoints: 0, maps: [], left: false }]));
   const ready = new Set();
 
   const t = {
@@ -40,13 +49,16 @@ export function createTournament({ seed, mapCount, roster }) {
     // (coinsPossible = coinsPossible(track, laps)), czas mety (DNF = czas
     // trwania wyścigu).
     recordRace(race, possibleCoins = 0) {
-      standings(race).forEach((r, place) => {
+      const pts = new Map(racePoints(race, possibleCoins).map((p) => [p.id, p.total]));
+      for (const r of race.racers) {
         const row = rows.get(r.id);
-        if (!row) return;
-        row.lastPoints = (TOURNAMENT.points[place] ?? 0) + coinBonus(r.coins ?? 0, possibleCoins);
+        if (!row) continue;
+        const time = r.finishTime ?? race.time;
+        row.lastPoints = pts.get(r.id);
         row.points += row.lastPoints;
-        row.time += r.finishTime ?? race.time;
-      });
+        row.time += time;
+        row.maps.push({ points: row.lastPoints, time });
+      }
       t.phase = t.index >= t.count - 1 ? 'done' : 'between';
     },
 
@@ -54,7 +66,7 @@ export function createTournament({ seed, mapCount, roster }) {
     table() {
       return [...rows.values()]
         .sort((a, b) => b.points - a.points || a.time - b.time || order.indexOf(a.id) - order.indexOf(b.id))
-        .map(({ id, name, color, isHuman, points, time, lastPoints, left }) => ({ id, name, color, isHuman, points, time, lastPoints, left }));
+        .map(({ id, name, color, isHuman, points, time, lastPoints, maps, left }) => ({ id, name, color, isHuman, points, time, lastPoints, maps: maps.map((m) => ({ ...m })), left }));
     },
 
     // Gotowość zgłasza tylko obecny człowiek z turnieju, między mapami.

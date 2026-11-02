@@ -401,3 +401,16 @@ test('sanitizeTourneyView: punkty mapy do points[0] + maxCoinPoints', async () =
   assert.equal(v.table[0].lastPoints, 19);
   assert.equal(v.table[1].lastPoints, TOURNAMENT.points[0] + TOURNAMENT.maxCoinPoints);
 });
+
+test('sanitizeTourneyView: lista map przycięta (długość, punkty, czas)', async () => {
+  const { TOURNAMENT, SETTINGS_SCHEMA } = await import('../src/config.js');
+  const maxMaps = SETTINGS_SCHEMA.find((e) => e.key === 'mapCount').max;
+  const maps = [{ points: 1e9, time: -5 }, { points: 'x', time: 1e12 }, null, ...Array(100).fill({ points: 3, time: 50 })];
+  const v = sanitizeTourneyView({ index: 0, count: 2, phase: 'between', table: [{ id: 'a', name: 'A', maps }], ready: [] });
+  const m = v.table[0].maps;
+  assert.equal(m.length, maxMaps);
+  assert.deepEqual(m[0], { points: TOURNAMENT.points[0] + TOURNAMENT.maxCoinPoints, time: 0 });
+  assert.deepEqual(m[1], { points: 0, time: TOURNAMENT.maxTotalSeconds });
+  assert.deepEqual(m[2], { points: 0, time: 0 });
+  assert.deepEqual(sanitizeTourneyView({ table: [{ id: 'b' }] }).table[0].maps, []);
+});

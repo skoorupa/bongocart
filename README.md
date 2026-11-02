@@ -53,7 +53,7 @@ Skrzynki dają losowy przedmiot (prowadzący częściej obronę, ostatni — ata
 W lobby ustaw **Tryb gry: Turniej** i **Liczbę map** (domyślnie 10; okrążenia z ustawienia „Liczba okrążeń”, domyślnie 5).
 Tory turnieju generują się z seeda (ten sam seed = te same mapy). Za miejsce na każdej mapie są punkty
 15-12-10-8-6-4-2-1 plus premia za monety (do +6); przy remisie wygrywa mniejszy łączny czas (kto nie dojechał, dostaje czas trwania wyścigu).
-Po każdej mapie widać tabelę turnieju; każdy klika **Gotowy**, a host może **Start mimo wszystko**.
+Po każdej mapie widać wyniki mapy (punkty za miejsce, za monety i sumę) oraz tabelę turnieju z punktami i czasem z każdej mapy; każdy klika **Gotowy**, a host może **Start mimo wszystko**.
 W turnieju wyścig trwa, aż dojadą wszyscy (także boty; limit 30 s od pierwszego na mecie). W trakcie wyścigu tabela jest pod klawiszem **Tab**. Gracz, który wyjdzie, zostaje w tabeli — dalej jedzie za niego bot.
 
 ## Sterowanie
