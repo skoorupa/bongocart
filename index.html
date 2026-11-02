@@ -28,6 +28,7 @@
         <tr><th>Okrążenie</th><td id="hudLapTime">0:00.00</td></tr>
         <tr><th>Najlepsze</th><td id="hudBest">—</td></tr>
       </table>
+      <div id="hudCoins" class="coins" hidden title="Monety: zebrane / możliwe (każda raz na okrążenie)"></div>
       <!-- Tabela pozycji na żywo (hud.js). -->
       <ol id="leaderboard" aria-label="Kolejność"></ol>
     </div>
@@ -97,7 +98,7 @@
     <div class="card">
       <h2 id="resultsTitle">Wyniki</h2>
       <table id="resultsTable">
-        <thead><tr><th></th><th>Kierowca</th><th>Czas</th><th>Najl. okr.</th></tr></thead>
+        <thead><tr><th></th><th>Kierowca</th><th>Czas</th><th>Najl. okr.</th><th>Monety</th></tr></thead>
         <tbody id="resultsBody"></tbody>
       </table>
       <!-- Turniej: tabela sumaryczna i gotowość (ui/tournamentView.js). -->

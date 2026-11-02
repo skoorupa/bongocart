@@ -154,7 +154,12 @@ export function createKartMesh(color, name = null) {
       root.rotation.y = view.heading + spinDone * KART.spin.turns * Math.PI * 2;
 
       wheelSpin += (view.speed / R) * dt;
-      wheels.forEach((w) => { w.rotation.x = wheelSpin; });
+      // Zepsute koła chybotają się na boki.
+      const wobble = view.brokenTime > 0 ? KART.brokenWobble : 0;
+      wheels.forEach((w, i) => {
+        w.rotation.x = wheelSpin;
+        w.rotation.z = wobble * Math.sin(t * 31 + i * 1.7);
+      });
       frontPivots.forEach((p) => { p.rotation.y = -view.steer * 0.45; });
 
       const d = view.drift;

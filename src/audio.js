@@ -168,6 +168,9 @@ export function createAudio() {
     shield: () => arp([523, 659, 784, 1047], 0.04, 'sine', AUDIO.sfxVolume * 1.2),
     hit: () => { burst(0.35, 2000, 200); tone(600, 120, 0.6, 'sawtooth'); },
     blocked: () => tone(1500, 900, 0.25, 'sine'),
+    boot: () => { burst(0.2, 1500, 300); tone(220, 90, 0.18, 'triangle'); }, // świst + plask
+    wrench: () => { tone(1900, 1700, 0.12, 'square', AUDIO.sfxVolume * 0.6); tone(2600, 2300, 0.2, 'triangle', AUDIO.sfxVolume * 0.6, 0.05); }, // brzęk
+    coin: () => arp([1319, 1976], 0.06, 'square', AUDIO.sfxVolume * 0.7),
     wall: (strength = 1) => burst(0.18, 900, 120, AUDIO.sfxVolume * Math.min(1, strength)),
     lap: () => arp([784, 1047], 0.09, 'square'),
     finalLap: () => arp([523, 659, 784, 1047], 0.1, 'square'),

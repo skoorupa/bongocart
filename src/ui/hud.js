@@ -5,6 +5,7 @@
 // =====================================================================
 import { ITEMS, RACE } from '../config.js';
 import { displayLap, estimatedFinish, formatTime, gapToLeader, showWrongWay, standings } from '../race.js';
+import { coinBonus, coinsPossible } from '../tournament.js';
 import { renderTournamentTable } from './tournamentView.js';
 
 const $ = (id) => document.getElementById(id);
@@ -38,12 +39,27 @@ function renderBoard(race, localId) {
   document.getElementById('leaderboard').replaceChildren(...rows);
 }
 
+// Komunikat po trafieniu (zdarzenie hit, pole what).
+const HIT_BANNERS = {
+  rocket: 'Trafiony pociskiem!',
+  banana: 'Poślizg na bananie!',
+  boot: 'Kopniak z buta!',
+  wrench: 'Zepsute koła — brak hamulca!',
+};
+
+// Monety w wynikach: "🪙 zebrane/możliwe (+premia)"; brak monet na torze = "—".
+function coinsLabel(race, r) {
+  const possible = coinsPossible(race.track, race.laps);
+  return possible ? `🪙 ${r.coins}/${possible} (+${coinBonus(r.coins, possible)})` : '—';
+}
+
 export function createHud() {
   const el = {
     root: $('hud'), lap: $('hudLap'), total: $('hudTotal'), lapTime: $('hudLapTime'), best: $('hudBest'),
     pos: $('hudPos'), posOf: $('hudPosOf'), countdown: $('countdown'), banner: $('banner'),
     wrongWay: $('wrongWay'), results: $('results'), resultsBody: $('resultsBody'),
     item: $('itemSlot'),
+    coins: $('hudCoins'),
     board: $('leaderboard'),
   };
   let boardIn = 0;
@@ -117,7 +133,7 @@ export function createHud() {
         if (e.type === 'finalLap') banner('OSTATNIE OKRĄŻENIE!', RACE.bannerSeconds, 'final');
         if (e.type === 'lap' && e.lap < race.laps) banner(`Okrążenie ${formatTime(e.time)}${e.best ? ' · najlepsze!' : ''}`);
         if (e.type === 'finish') banner(`META! ${e.place}. miejsce`, RACE.resultsDelaySeconds + 1, 'finish');
-        if (e.type === 'hit') banner(e.what === 'rocket' ? 'Trafiony pociskiem!' : 'Poślizg na bananie!', RACE.hitBannerSeconds, 'hit');
+        if (e.type === 'hit') banner(HIT_BANNERS[e.what] ?? 'Trafiony!', RACE.hitBannerSeconds, 'hit');
         if (e.type === 'blocked') banner('Tarcza ochroniła!', RACE.hitBannerSeconds);
       }
     },
@@ -139,6 +155,11 @@ export function createHud() {
       el.best.textContent = formatTime(me.bestLap);
       el.pos.textContent = place;
       el.posOf.textContent = `/${race.racers.length}`;
+      // Monety: zebrane / możliwe (każda moneta raz na okrążenie).
+      const possible = coinsPossible(race.track, race.laps);
+      el.coins.hidden = !possible;
+      const coinsText = `🪙 ${me.coins}/${possible}`;
+      if (el.coins.textContent !== coinsText) el.coins.textContent = coinsText;
 
       // Odliczanie 3-2-1, potem "START!" przez chwilę.
       if (race.time < 0) {
@@ -189,6 +210,7 @@ export function createHud() {
           r.takenOver ? `${r.name} 🤖` : r.name,
           finishLabel(race, r),
           formatTime(r.bestLap),
+          coinsLabel(race, r),
         ];
         cells.forEach((text, c) => {
           const td = document.createElement('td');

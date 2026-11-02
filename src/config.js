@@ -336,6 +336,8 @@ export const OBSTACLES = {
     clearance: 40, // [m] odstęp (wzdłuż toru) od skrzynek i przeszkód (poślizg ~30 m nie kończy się na słupkach)
     edgeMargin: 0.5, // [m] plama nie wystaje za jezdnię
     color: 0x111116, sheen: 0x5b4a8a, // kolor plamy i połysku
+    y: 0.06, // [m] wysokość plamy nad podłożem (nad jezdnią i linią startu)
+    sheenScale: 0.55, sheenLift: 0.005, // połysk: rozmiar (× plama), uniesienie [m]
   },
   bumpSound: 0.25, // siła dźwięku uderzenia przy progu (0..1, jak wall)
   bumpShake: 0.12, // [m] wstrząs kamery przy progu

@@ -575,13 +575,14 @@ $('pinSeed').addEventListener('click', () => {
 });
 $('showDebug').addEventListener('change', (e) => { visual.debug.visible = e.target.checked; });
 
-const USE_SOUND = { boost: 'boost', rocket: 'rocket', banana: 'banana', shield: 'shield' };
+const USE_SOUND = { boost: 'boost', rocket: 'rocket', banana: 'banana', shield: 'shield', boot: 'boot', wrench: 'wrench' };
 function handleEvents(events) {
   hud.handleEvents(events, localId, game.race);
   for (const e of events) {
     if (e.type === 'go') audio.play('go');
     if (e.id !== localId) continue;
     if (e.type === 'pickup') audio.play('pickup');
+    if (e.type === 'coin') audio.play('coin');
     if (e.type === 'use') audio.play(USE_SOUND[e.item]);
     if (e.type === 'hit') {
       audio.play('hit');
@@ -633,6 +634,7 @@ function viewOf(id, alpha, lookBack = false) {
     spinTime: k.spinTime,
     shieldTime: k.shieldTime,
     bumpTime: k.bumpTime,
+    brokenTime: k.brokenTime,
     speedFrac: Math.abs(k.speed) / game.stats.maxSpeed,
     boosting: k.boostTime > 0,
     driftDir: k.drift.active ? k.drift.dir : 0,
@@ -766,7 +768,7 @@ renderer.setAnimationLoop(() => {
     m.update(v, running ? dt : 0);
     m.setLabelDistance(Math.hypot(v.x - chase.camera.position.x, v.z - chase.camera.position.z));
   }
-  itemsView.update(game.items, running || !inRace ? dt : 0);
+  itemsView.update(game.items, running || !inRace ? dt : 0, localId);
   const followId = followTarget(done);
   const me = viewOf(followId, alpha, ctl.lookBack && running && !menuOpen && followId === localId);
   chase.update(me, dt);

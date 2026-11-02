@@ -1,6 +1,7 @@
 // =====================================================================
 // track/obstacleMesh.js — wygląd przeszkód z track.obstacles: pomarańczowe
-// słupki drogowe z białymi pasami i progi zwalniające w żółto-czarne pasy.
+// słupki drogowe z białymi pasami, progi zwalniające w żółto-czarne pasy i plamy
+// oleju (track.oils).
 // InstancedMesh: jedno wywołanie rysowania na rodzaj. Sprzątanie przez
 // disposeObject (trackMesh.js) razem z resztą toru.
 // =====================================================================
@@ -62,6 +63,24 @@ export function buildObstaclesVisual(track) {
     stripes[c].forEach((mm, i) => mesh.setMatrixAt(i, mm));
     group.add(mesh);
   });
+  // --- Plamy oleju: ciemna, okrągła kałuża (jak obszar działania) z fioletowym połyskiem.
+  const O = OBSTACLES.oil;
+  if (track.oils?.length) {
+    const disc = new THREE.CircleGeometry(1, 20);
+    disc.rotateX(-Math.PI / 2);
+    const layers = [
+      [O.color, 1, O.y, 0.92],
+      [O.sheen, O.sheenScale, O.y + O.sheenLift, 0.45],
+    ].map(([color, s, y, opacity]) => {
+      const mesh = new THREE.InstancedMesh(disc, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }), track.oils.length);
+      track.oils.forEach((o, i) => {
+        q.setFromAxisAngle(up, track.points[o.index].heading);
+        mesh.setMatrixAt(i, m.compose(new THREE.Vector3(o.x, y, o.z), q, new THREE.Vector3(o.radius * s, 1, o.radius * s)));
+      });
+      return mesh;
+    });
+    group.add(...layers);
+  }
   return group;
 }
 
